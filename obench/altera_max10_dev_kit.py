@@ -11,25 +11,15 @@ import os
 import argparse
 
 from migen import *
-from migen.genlib.cdc import ClockBuffer
-from migen.fhdl.tools import list_clock_domains, list_clock_domains_expr
 
 from litex_boards.platforms import altera_max10_dev_kit
 
 from litex.soc.cores.clock import Max10PLL
 from litex.soc.integration.soc_core import *
 from litex.soc.integration.builder import *
-from litex.soc.cores.led import LedChaser
 from litex.soc.cores import cpu
 
-from liteeth.phy import LiteEthPHY
-from liteeth.phy.common import LiteEthPHYMDIO
-from liteeth.phy.mii import LiteEthPHYMII
-from liteeth.phy.altera_rgmii import LiteEthPHYRGMII
-
-from litescope import LiteScopeAnalyzer
-
-from aeshb.sbox import SBoxROMLUT
+from aeshb.osbox import OSBoxROMLUT
 
 # CRG ----------------------------------------------------------------------------------------------
 
@@ -51,20 +41,6 @@ class _CRG(Module):
         pll.create_clkout(self.cd_sys, sys_clk_freq)
 
 # BaseSoC ------------------------------------------------------------------------------------------
-
-class BenchSoC(SoCCore):
-    def __init__(self, platform, clk_freq, sys_clk_freq=int(100e6), **kwargs):
-        super().__init__(platform, clk_freq, **kwargs)
-        self.platform = platform = altera_max10_dev_kit.Platform()
-
-        # SoCMini ----------------------------------------------------------------------------------
-        SoCMini.__init__(self, platform, sys_clk_freq,
-            ident         = "LiteX SoC on Altera's Max 10 dev kit",
-            ident_version = True,
-            **kwargs)
-
-        # CRG --------------------------------------------------------------------------------------
-        self.submodules.crg = self.crg = _CRG(platform, sys_clk_freq)
 
 class FakeSoC(Module):
     def __init__(self):
@@ -101,6 +77,7 @@ class Harness(SoCCore):
                  sys_clk_freq=int(125e6),
                  **kwargs):
         self.platform = platform = altera_max10_dev_kit.Platform()
+        self.platform.name = "aes_harness"
         # self.csr_map = {}
 
         # SoCMini.__init__(self, platform, sys_clk_freq,
@@ -113,12 +90,14 @@ class Harness(SoCCore):
         # CRG --------------------------------------------------------------------------------------
         self.submodules.crg = _CRG(platform, sys_clk_freq)
 
-        self.sbox_in = Cat([self.platform.request("hsmc_tx_d_p") for i in range(8)])
+        self.sbox_in = Cat([self.platform.request("hsmc_rx_d_p") for i in range(8)])
         self.sbox_in_reg = Signal(8)
         self.sync += self.sbox_in_reg.eq(self.sbox_in)
-        self.submodules.sbox = SBoxROMLUT(self.sbox_in)
-        self.sbox_out = Signal(8)
-        self.sync += self.sbox_out.eq(self.sbox_out)
+        self.submodules.sbox = OSBoxROMLUT(self.sbox_in_reg)
+        self.sbox_out = Cat([self.platform.request("hsmc_tx_d_p") for i in range(8)])
+        self.sbox_out_reg = Signal(8)
+        self.sync += self.sbox_out_reg.eq(self.sbox.out_byte)
+        self.comb += self.sbox_out.eq(self.sbox_out_reg)
 
 # Build --------------------------------------------------------------------------------------------
 

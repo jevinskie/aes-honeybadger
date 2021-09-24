@@ -1,30 +1,33 @@
-#
-# This file is part of LiteX.
-#
-# Copyright (c) 2013-2015 Sebastien Bourdeauducq <sb@m-labs.hk>
-# SPDX-License-Identifier: BSD-2-Clause
+#!/usr/bin/env python3
 
-from migen import *
+from nmigen import *
+from nmigen.cli import main
 
-from .simpleaes import SimpleAES
+from aeshb.simpleaes import SimpleAES
 
-# Identifier ---------------------------------------------------------------------------------------
-
-class SBoxROMLUT(Module):
+class SBoxROMLUT(Elaboratable):
     def __init__(self, in_byte: Signal):
         assert len(in_byte) == 8
         self.in_byte = in_byte
         self.out_byte = Signal(8)
         def next_pow2(x):
             return 1 << (x - 1).bit_length()
-        self.mem = Memory(8, next_pow2(len(SimpleAES.sbox)), init=SimpleAES.sbox)
-        self.specials += self.mem
-        self.rd_port = self.mem.get_port(write_capable=False, async_read=False, has_re=False)
-        self.specials += self.rd_port
-        self.addr = Signal()
-        self.comb += self.addr.eq(in_byte)
-        self.comb += self.rd_port.adr.eq(self.addr)
-        self.comb += self.out_byte.eq(self.rd_port.dat_r)
+        sz = next_pow2(len(SimpleAES.sbox))
+        self.mem = Memory(width=8, depth=sz, init=SimpleAES.sbox)
 
-    def get_memories(self):
-        return [(True, self.mem)]
+    def elaborate(self, platform):
+        m = Module()
+
+        m.submodules.rd_port = rd_port = self.mem.read_port()
+        self.addr = Signal.like(rd_port.addr)
+        m.d.comb += [
+            self.addr.eq(self.in_byte),
+            rd_port.addr.eq(self.addr),
+            self.out_byte.eq(rd_port.data),
+        ]
+        return m
+
+if __name__ == "__main__":
+    in_byte = Signal(8)
+    sbox = SBoxROMLUT(in_byte)
+    main(sbox, ports=[sbox.in_byte, sbox.out_byte])
