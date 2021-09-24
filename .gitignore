@@ -1,2 +1,6 @@
 *.pyc
 aes_honeybadger.egg-info/
+**/__pycache__/
+.python-version
+csr.csv
+build/
