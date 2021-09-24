@@ -6,6 +6,7 @@
 # Copyright (c) 2019 msloniewski <marcin.sloniewski@gmail.com>
 # SPDX-License-Identifier: BSD-2-Clause
 
+import logging
 import os
 import argparse
 
@@ -19,7 +20,7 @@ from litex.soc.cores.clock import Max10PLL
 from litex.soc.integration.soc_core import *
 from litex.soc.integration.builder import *
 from litex.soc.cores.led import LedChaser
-from litex.soc.cores.altera_adc import Max10ADC
+from litex.soc.cores import cpu
 
 from liteeth.phy import LiteEthPHY
 from liteeth.phy.common import LiteEthPHYMDIO
@@ -67,16 +68,33 @@ class BenchSoC(SoCCore):
 
 class FakeSoC(Module):
     def __init__(self):
+        self.logger = logging.getLogger("SoC")
         self.cpu_type = None
-        class dummy:
+        class dummy_cr_region:
             origin = 0
             length = 0
             size = 0
             type = "mem"
-        self.mem_regions = {'csr': dummy()}
+        self.mem_regions = {'csr': dummy_cr_region()}
         self.constants = {}
         self.csr_regions = {}
         self.csr_map = {}
+        self.wb_slaves = {}
+        class dummy_bus:
+            standard = 'wishbone'
+            masters = []
+            slaves = []
+            data_width = 32
+            address_width = 16
+            regions = {}
+        self.bus = dummy_bus()
+        self.mem_map = {}
+        self.cpu = cpu.CPUNone()
+        class dummy_csr:
+            regions = {}
+        self.csr = dummy_csr()
+        self.irq = None
+        self.config = {}
 
 class Harness(SoCCore):
     def __init__(self,
@@ -85,11 +103,11 @@ class Harness(SoCCore):
         self.platform = platform = altera_max10_dev_kit.Platform()
         # self.csr_map = {}
 
-        SoCMini.__init__(self, platform, sys_clk_freq,
-            ident         = "",
-            ident_version = False,
-            **kwargs)
-        # FakeSoC.__init__(self)
+        # SoCMini.__init__(self, platform, sys_clk_freq,
+        #     ident         = "",
+        #     ident_version = False,
+        #     **kwargs)
+        FakeSoC.__init__(self)
 
 
         # CRG --------------------------------------------------------------------------------------
