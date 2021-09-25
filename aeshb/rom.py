@@ -17,10 +17,11 @@ class ROM16x1(Elaboratable):
         self.init = init
         self.data = Signal()
         self.lut4 = LELUT4(self.addr, mask=self.init)
+        self.lut4.combout.name = "data"
 
     def elaborate(self, platform):
         m = Module()
-        m.submodules += self.lut4
+        m.submodules.rom16x1_lut4 = self.lut4
         m.d.comb += self.data.eq(self.lut4.combout)
         return m
 

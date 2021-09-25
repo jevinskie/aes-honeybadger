@@ -4,7 +4,7 @@ from nmigen import *
 from nmigen.cli import main
 from nmigen.lib.fpga_lut import LUTInput, LUTOutput
 
-class LELUT(Elaboratable):
+class LELUT4(Elaboratable):
     def __init__(self, d, mask: int):
         self.d = d
         assert 0 <= mask < 2**16
@@ -18,12 +18,14 @@ class LELUT(Elaboratable):
             lis = Signal(name=f"lut4_li{i}")
             li = LUTInput(self.d[i], lis)
             self.d_li.append(lis)
-            m.submodules[f"lut4_li{i}"] = li
+            m.submodules[f"lut4_li{i}_mod"] = li
         self.d_li = Cat(*self.d_li)
+        self.lut_mask_sig = Signal(16, name="lut_mask")
+        m.d.comb += self.lut_mask_sig.eq(Const(self.mask, 16))
         self.combout_lo_sig = Signal(name="lut4_lo")
-        m.d.comb += self.combout_lo_sig.eq(Const(self.mask, 16).bit_select(self.d_li, 1))
+        m.d.comb += self.combout_lo_sig.eq(self.lut_mask_sig.bit_select(self.d_li, 1))
         lo = LUTOutput(self.combout_lo_sig, self.combout)
-        m.submodules += lo
+        m.submodules["lut4_lo_mod"] = lo
         return m
 
     @classmethod
