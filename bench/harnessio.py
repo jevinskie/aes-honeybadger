@@ -12,6 +12,9 @@ class HarnessIO(Elaboratable):
         self.outputs = outputs
         self.input = Cat(*self.inputs)
         self.output = Cat(*self.outputs)
+        self.input_scan = Signal.like(self.input)
+        self.input_latch = Signal.like(self.input)
+        self.output_scan = Signal.like(self.output)
 
     def elaborate(self, platform):
         m = Module()
