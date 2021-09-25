@@ -4,3 +4,5 @@ aes_honeybadger.egg-info/
 .python-version
 csr.csv
 build/
+*.gtkw
+*.vcd

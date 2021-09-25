@@ -25,6 +25,9 @@ class ROM16x1(Elaboratable):
         m.d.comb += self.data.eq(self.lut4.combout)
         return m
 
+    def ports(self):
+        return [self.addr, self.data]
+
 if __name__ == "__main__":
     addr = Signal(4)
     rom = ROM16x1(addr, init=0xDEAD)
