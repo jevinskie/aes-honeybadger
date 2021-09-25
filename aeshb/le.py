@@ -2,6 +2,7 @@
 
 from nmigen import *
 from nmigen.cli import main
+from nmigen.lib.fpga_lut import LUTInput, LUTOutput
 
 class LELUT4(Elaboratable):
     def __init__(self, d, mask: int):
@@ -15,20 +16,14 @@ class LELUT4(Elaboratable):
         self.d_li = []
         for i in range(4):
             lis = Signal(name=f"lut4_li{i}")
-            li = Instance("LUT_INPUT",
-                         # name = f"lut4_lut_lo{i}",
-                         i_in = self.d[i],
-                         o_out = lis)
+            li = LUTInput(self.d[i], lis)
             self.d_li.append(lis)
             m.submodules += li
         self.d_li = Cat(*self.d_li)
         self.combout_lo_sig = Signal(name="lut4_lo")
         m.d.comb += self.combout_lo_sig.eq(Const(self.mask, 16).bit_select(self.d_li, 1))
-        m.submodules.combout_lo = Instance("LUT_OUTPUT",
-                                   # name = f"lut4_lut_lo",
-                                   i_in = self.combout_lo_sig,
-                                   o_out = self.combout,
-                                   )
+        lo = LUTOutput(self.combout_lo_sig, self.combout)
+        m.submodules += lo
         return m
 
     @classmethod
