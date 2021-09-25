@@ -1,10 +1,11 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="altera_max10_dev_kit" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+  <configuration default="false" name="deca" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
     <module name="aes-honeybadger" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
       <env name="PYTHONUNBUFFERED" value="1" />
+      <env name="PATH" value="/opt/eda/altera/quartus/20.1.1.720-std/quartus/bin:$PATH" />
     </envs>
     <option name="SDK_HOME" value="$USER_HOME$/.pyenv/versions/3.9.6/bin/python3" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/bench" />
@@ -12,7 +13,7 @@
     <option name="ADD_CONTENT_ROOTS" value="false" />
     <option name="ADD_SOURCE_ROOTS" value="false" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/bench/altera_max10_dev_kit.py" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/bench/deca.py" />
     <option name="PARAMETERS" value="" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
