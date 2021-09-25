@@ -27,8 +27,7 @@ class HarnessIO(Elaboratable):
         m.domains += spi
         m.d.comb += spi.clk.eq(self.sclk)
         m.d.spi += self.input_scan.eq(Cat(self.copi, *self.input_scan[:-1]))
-        wtf = Cat(*self.output_scan[1:], self.input_scan[-1])
-        m.d.spi += self.output_scan.eq(wtf)
+        m.d.spi += self.output_scan.eq(Cat(*self.output_scan[1:], self.input_scan[-1]))
         m.d.comb += self.cipo.eq(self.output_scan[0])
 
         m.d.sync += self.input_buf.eq(self.input_latch)
