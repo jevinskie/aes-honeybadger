@@ -3,28 +3,28 @@
 from nmigen import *
 from nmigen.cli import main
 
-from .le import LELUT4
+from aeshb.le import LELUT4
+from aeshb.utils import bitlist
 
-class LELUT4(Elaboratable):
-    def __init__(self, d0, d1, d2, d3):
-        self.d = Cat(d0, d1, d2, d3)
-        self.combout = Signal()
+class ROM16x1(Elaboratable):
+    def __init__(self, addr, init):
+        self.addr = addr
+        if isinstance(init, int):
+            assert 0 <= init < 2**16
+            init = bitlist(init, 16)
+        else:
+            assert isinstance(init, list) and len(init) == 16
+        self.init = init
+        self.data = Signal()
+        self.lut4 = LELUT4(self.addr, mask=self.init)
 
     def elaborate(self, platform):
         m = Module()
-        m.d.comb += self.combout.eq(self.d[0] ^ self.d[1] ^ self.d[2] ^ self.d[3])
+        m.submodules += self.lut4
+        m.d.comb += self.data.eq(self.lut4.combout)
         return m
 
-    @classmethod
-    def simulate(cls, d0, d1, d2, d3, mask):
-        assert 0 <= mask < 2**4
-        idx = (d3 << 3) | (d2 << 2) | (d1 << 1) | (d0 << 0)
-        return (mask & (1 << idx)) >> idx
-
 if __name__ == "__main__":
-    d0 = Signal()
-    d1 = Signal()
-    d2 = Signal()
-    d3 = Signal()
-    lelut4 = LELUT4(d0, d1, d2, d3)
-    main(lelut4, ports=[d0, d1, d2, d3, lelut4.combout])
+    addr = Signal(4)
+    rom = ROM16x1(addr, init=0xDEAD)
+    main(rom, ports=[addr, rom.data])
