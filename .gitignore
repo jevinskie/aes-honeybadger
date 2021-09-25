@@ -6,3 +6,5 @@ csr.csv
 build/
 *.gtkw
 *.vcd
+ls
+.pytest_cache/
