@@ -9,6 +9,7 @@ class SBoxROMLUT(Elaboratable):
     def __init__(self, in_byte: Signal):
         assert len(in_byte) == 8
         self.in_byte = in_byte
+        self.out_byte_reg = Signal(8)
         self.out_byte = Signal(8)
         def next_pow2(x):
             return 1 << (x - 1).bit_length()
@@ -23,8 +24,9 @@ class SBoxROMLUT(Elaboratable):
         m.d.comb += [
             self.addr.eq(self.in_byte),
             rd_port.addr.eq(self.addr),
-            self.out_byte.eq(rd_port.data),
+            self.out_byte.eq(self.out_byte_reg),
         ]
+        m.d.sync += self.out_byte_reg.eq(rd_port.data)
         return m
 
 if __name__ == "__main__":
