@@ -8,7 +8,7 @@ from nmigen.lib.io import *
 from nmigen.build.dsl import *
 from nmigen.build.res import *
 
-from aeshb.sbox import SBoxROMLUT
+from aeshb.sbox import SBoxROMLUT, SBoxROMLUTSplit2x
 from harnessio import HarnessIO
 
 class Harness(Elaboratable):
@@ -21,7 +21,7 @@ class Harness(Elaboratable):
     def elaborate(self, platform):
         m = Module()
         in_byte = Signal(8)
-        m.submodules.sbox = sbox = SBoxROMLUT(in_byte)
+        m.submodules.sbox = sbox = SBoxROMLUTSplit2x(in_byte)
         m.submodules.hio = hio = HarnessIO(self.sclk, self.copi, self.cipo, self.load, inputs=[in_byte], outputs=[sbox.out_byte])
         return m
 
