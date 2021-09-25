@@ -4,16 +4,16 @@ from nmigen import *
 from nmigen.cli import main
 
 from aeshb.le import LELUT4
-from aeshb.utils import bitlist
+from aeshb.utils import bitlist2int
 
 class ROM16x1(Elaboratable):
     def __init__(self, addr, init):
         self.addr = addr
         if isinstance(init, int):
             assert 0 <= init < 2**16
-            init = bitlist(init, 16)
         else:
             assert isinstance(init, list) and len(init) == 16
+            init = bitlist2int(init)
         self.init = init
         self.data = Signal()
         self.lut4 = LELUT4(self.addr, mask=self.init)
