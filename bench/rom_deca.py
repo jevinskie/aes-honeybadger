@@ -8,7 +8,7 @@ from nmigen.lib.io import *
 from nmigen.build.dsl import *
 from nmigen.build.res import *
 
-from aeshb.rom import ROM16x1, ROM16x8
+from aeshb.rom import ROM16x1, ROM16x8, ROM16x16
 from harnessio import HarnessIO
 
 class DECA(ArrowDECAPlatform):
@@ -38,8 +38,11 @@ class Harness(Elaboratable):
 
         addr = Signal(4)
         # m.submodules.rom = rom = ROM16x1(addr, init=0xDEAD)
-        static_random = bytes.fromhex("b2c8c5875fa45462afe35753b9b70f43")
-        m.submodules.rom = rom = ROM16x8(addr, init=static_random)
+        # static_random = bytes.fromhex("b2c8c5875fa45462afe35753b9b70f43")
+        # m.submodules.rom = rom = ROM16x8(addr, init=static_random)
+        static_random = [34502, 10917, 31302, 39655, 62319, 3030, 62137, 43078,
+                         56956, 59113, 7346, 65069, 22379, 6733, 4648, 4599]
+        m.submodules.rom = rom = ROM16x16(addr, init=static_random)
         inputs = [addr]
         outputs = [rom.data]
 
