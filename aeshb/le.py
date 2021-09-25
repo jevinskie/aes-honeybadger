@@ -4,6 +4,8 @@ from nmigen import *
 from nmigen.cli import main
 from nmigen.lib.fpga_lut import LUTInput, LUTOutput
 
+from aeshb.utils import int2bitlist
+
 class LELUT4(Elaboratable):
     def __init__(self, d, mask: int):
         self.d = d
@@ -32,7 +34,7 @@ class LELUT4(Elaboratable):
     def simulate(cls, d0, d1, d2, d3, mask):
         assert 0 <= mask < 2**16
         idx = (d3 << 3) | (d2 << 2) | (d1 << 1) | (d0 << 0)
-        return (mask & (1 << idx)) >> idx
+        return (mask >> idx) & 1
 
 class LELUT4Atom(Elaboratable):
     def __init__(self, d, mask: int):
@@ -59,5 +61,16 @@ class LELUT4Atom(Elaboratable):
 
 if __name__ == "__main__":
     d = Signal(4)
-    lelut4 = LELUT4(d, mask=0xFF00)
-    main(lelut4, ports=[d, lelut4.combout])
+    lelut4 = LELUT4(d, mask=0xDEAD)
+    mask_orig = 0xDEAD
+    mask_new = 0xBCEB
+    mask_new2 = 0xF6B9
+    for i in range(16):
+        d3o, d2o, d1o, d0o = reversed(int2bitlist(i, 4))
+        d3n, d2n, d1n, d0n = d2o, d3o, d0o, d1o
+        d3n2, d2n2, d1n2, d0n2 = d0o, d1o, d2o, d3o
+        o = LELUT4.simulate(d0o, d1o, d2o, d3o, mask=mask_orig)
+        n = LELUT4.simulate(d0n, d1n, d2n, d3n, mask=mask_new)
+        n2 = LELUT4.simulate(d0n2, d1n2, d2n2, d3n2, mask=mask_new2)
+        print(f"i: {i:2} orig: {o} new: {n} new2: {n2}")
+    # main(lelut4, ports=[d, lelut4.combout])

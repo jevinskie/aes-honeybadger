@@ -11,6 +11,21 @@ from nmigen.build.res import *
 from aeshb.rom import ROM16x1
 from harnessio import HarnessIO
 
+class DECA(ArrowDECAPlatform):
+    @property
+    def file_templates(self):
+        # Configure the voltages of the I/O banks by appending the global
+        # assignments to the template. However, we create our own copy of the
+        # file templates before modifying them to avoid modifying the original.
+        return {
+            **super().file_templates,
+            "{{name}}.qsf":
+                super().file_templates.get("{{name}}.qsf") +
+                r"""
+                """,
+        }
+
+
 class Harness(Elaboratable):
     def __init__(self, sclk, copi, cipo, load):
         self.sclk = sclk
@@ -34,7 +49,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--build", action="store_true")
     args = parser.parse_args()
-    platform = ArrowDECAPlatform()
+    platform = DECA()
     platform.add_resources([
         Resource("harness_spi", 0,
             Subsignal("sclk", Pins("1", dir="i",conn=("gpio", 0))),
@@ -44,4 +59,5 @@ if __name__ == "__main__":
             Attrs(io_standard="3.3-V LVTTL"),
         )])
     hio_spi = platform.request("harness_spi", 0)
-    platform.build(Harness(hio_spi.sclk, hio_spi.copi, hio_spi.cipo, hio_spi.load), do_build=args.build, do_program=False)
+    harness = Harness(hio_spi.sclk, hio_spi.copi, hio_spi.cipo, hio_spi.load)
+    platform.build(harness, name="sbox_bench", do_build=args.build, do_program=False)
