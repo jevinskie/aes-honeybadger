@@ -8,7 +8,7 @@ from nmigen.lib.io import *
 from nmigen.build.dsl import *
 from nmigen.build.res import *
 
-from aeshb.rom import ROM16x1
+from aeshb.rom import ROM16x1, ROM16x8
 from harnessio import HarnessIO
 
 class DECA(ArrowDECAPlatform):
@@ -37,7 +37,9 @@ class Harness(Elaboratable):
         m = Module()
 
         addr = Signal(4)
-        m.submodules.rom = rom = ROM16x1(addr, init=0xDEAD)
+        # m.submodules.rom = rom = ROM16x1(addr, init=0xDEAD)
+        static_random = bytes.fromhex("b2c8c5875fa45462afe35753b9b70f43")
+        m.submodules.rom = rom = ROM16x8(addr, init=static_random)
         inputs = [addr]
         outputs = [rom.data]
 
@@ -48,6 +50,7 @@ class Harness(Elaboratable):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--build", action="store_true")
+    parser.add_argument("--prog", action="store_true")
     args = parser.parse_args()
     platform = DECA()
     platform.add_resources([
@@ -60,4 +63,4 @@ if __name__ == "__main__":
         )])
     hio_spi = platform.request("harness_spi", 0)
     harness = Harness(hio_spi.sclk, hio_spi.copi, hio_spi.cipo, hio_spi.load)
-    platform.build(harness, name="sbox_bench", do_build=args.build, do_program=False)
+    platform.build(harness, name="sbox_bench", do_build=args.build, do_program=args.prog)
