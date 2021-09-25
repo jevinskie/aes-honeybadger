@@ -16,7 +16,7 @@ class Harness(Elaboratable):
 
     def elaborate(self, platform):
         m = Module()
-        self.in_byte_reg = Signal.like(self.in_byte)
+        self.in_byte_reg = Signal(8, reset_less=True)
         m.d.sync += self.in_byte_reg.eq(self.in_byte)
         m.submodules.sbox = sbox = SBoxROMLUT(self.in_byte_reg)
         m.d.comb += [

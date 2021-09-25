@@ -9,7 +9,7 @@ class SBoxROMLUT(Elaboratable):
     def __init__(self, in_byte: Signal):
         assert len(in_byte) == 8
         self.in_byte = in_byte
-        self.out_byte_reg = Signal(8)
+        self.out_byte_reg = Signal(8, reset_less=True)
         self.out_byte = Signal(8)
         def next_pow2(x):
             return 1 << (x - 1).bit_length()
