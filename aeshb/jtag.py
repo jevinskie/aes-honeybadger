@@ -130,16 +130,46 @@ class AlteraJTAG(Elaboratable):
         self.tap_fsm = JTAGTAPFSM(self.tms)
 
     def add_reserved_jtag_decls(self, platform):
+        # platform.add_resources([
+        #     Resource("altera_jtag_reserved", 0,
+        #         Subsignal("altera_reserved_tms", Pins("altera_reserved_tms", dir="i")),
+        #         Subsignal("altera_reserved_tck", Pins("altera_reserved_tck", dir="i")),
+        #         Subsignal("altera_reserved_tdi", Pins("altera_reserved_tdi", dir="i")),
+        #         Subsignal("altera_reserved_tdo", Pins("altera_reserved_tdo", dir="o")),
+        # )])
         platform.add_resources([
-            Resource("altera_jtag_reserved", 0,
-                Subsignal("altera_reserved_tms", Pins("altera_reserved_tms", dir="i")),
-                Subsignal("altera_reserved_tck", Pins("altera_reserved_tck", dir="i")),
-                Subsignal("altera_reserved_tdi", Pins("altera_reserved_tdi", dir="i")),
-                Subsignal("altera_reserved_tdo", Pins("altera_reserved_tdo", dir="o")),
-        )])
+            Resource("altera_reserved_tms", 0, Pins("altera_reserved_tms", dir="iv")),
+            Resource("altera_reserved_tck", 0, Pins("altera_reserved_tck", dir="iv")),
+            Resource("altera_reserved_tdi", 0, Pins("altera_reserved_tdi", dir="iv")),
+            Resource("altera_reserved_tdo", 0, Pins("altera_reserved_tdo", dir="ov")),
+        ])
 
     def get_reserved_jtag_pads(self, platform):
-        return platform.request("altera_jtag_reserved")
+        # return platform.request("altera_jtag_reserved")
+        tms = platform.request("altera_reserved_tms")
+        tms.fields["iv"].name = "altera_reserved_tms"
+        tck = platform.request("altera_reserved_tck")
+        tck.fields["iv"].name = "altera_reserved_tck"
+        tdi = platform.request("altera_reserved_tdi")
+        tdi.fields["iv"].name = "altera_reserved_tdi"
+        tdo = platform.request("altera_reserved_tdo")
+        tdo.fields["ov"].name = "altera_reserved_tdo"
+        class JTAGPads:
+            def __init__(self, tms, tck, tdi, tdo):
+                self.altera_reserved_tms = tms
+                self.altera_reserved_tck = tck
+                self.altera_reserved_tdi = tdi
+                self.altera_reserved_tdo = tdo
+        reserved_jtag_pads = JTAGPads(tms.fields["iv"], tck.fields["iv"], tdi.fields["iv"], tdo.fields["ov"])
+        # reserved_jtag_pads = Record([
+        #         ('altera_reserved_tms', tms.fields["i"]),
+        #         ('altera_reserved_tck', 1),
+        #         ('altera_reserved_tdi', 1),
+        #         ('altera_reserved_tdo', 1),
+        #     ],
+        #     name='altera_jtag_reserved',
+        # )
+        return reserved_jtag_pads
 
     def elaborate(self, platform):
         m = Module()
