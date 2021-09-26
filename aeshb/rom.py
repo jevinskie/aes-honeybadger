@@ -234,9 +234,9 @@ class ROM256x8(Elaboratable):
         m.submodules.rom128x16 = self.rom
         m.d.comb += self.rom_addr.eq(self.addr[1:])
         with m.If(self.addr[0]):
-            m.d.comb += self.data.eq(self.rom.data[self.width//2:])
+            m.d.comb += self.data.eq(self.rom.data[self.width:])
         with m.Else():
-            m.d.comb += self.data.eq(self.rom.data[:self.width//2])
+            m.d.comb += self.data.eq(self.rom.data[:self.width])
         return m
 
     def ports(self):
@@ -251,8 +251,8 @@ if __name__ == "__main__":
     # static_random = [34502, 10917, 31302, 39655, 62319, 3030, 62137, 43078,
     #                  56956, 59113, 7346, 65069, 22379, 6733, 4648, 4599]
     # rom = ROM16x16(addr, init=static_random)
-    # addr = Signal(8)
-    # rom256x8 = ROM256x8(addr, init=SimpleAES.sbox)
-    addr = Signal(5)
-    rom = ROM32x16(addr, init=list(range(32)))
+    addr = Signal(8)
+    rom = ROM256x8(addr, init=SimpleAES.sbox)
+    # addr = Signal(5)
+    # rom = ROM32x16(addr, init=list(range(32)))
     main(rom, ports=[addr, rom.data])
