@@ -91,7 +91,7 @@ def test_rom32x16():
 
 def test_rom128x16():
     m = Module()
-    addr = Signal(6)
+    addr = Signal(7)
     init = list(range(128))
     m.submodules.rom = rom = ROM128x16(addr, init=init)
 
