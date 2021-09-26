@@ -138,29 +138,29 @@ class AlteraJTAG(Elaboratable):
         #         Subsignal("altera_reserved_tdo", Pins("altera_reserved_tdo", dir="o")),
         # )])
         platform.add_resources([
-            Resource("altera_reserved_tms", 0, Pins("altera_reserved_tms", dir="iv")),
-            Resource("altera_reserved_tck", 0, Pins("altera_reserved_tck", dir="iv")),
-            Resource("altera_reserved_tdi", 0, Pins("altera_reserved_tdi", dir="iv")),
-            Resource("altera_reserved_tdo", 0, Pins("altera_reserved_tdo", dir="ov")),
+            Resource("altera_reserved_tms", 0, Pins("altera_reserved_tms", dir="i"), Attrs(VIRTUAL="True")),
+            Resource("altera_reserved_tck", 0, Pins("altera_reserved_tck", dir="i"), Attrs(VIRTUAL="True")),
+            Resource("altera_reserved_tdi", 0, Pins("altera_reserved_tdi", dir="i"), Attrs(VIRTUAL="True")),
+            Resource("altera_reserved_tdo", 0, Pins("altera_reserved_tdo", dir="o"), Attrs(VIRTUAL="True")),
         ])
 
     def get_reserved_jtag_pads(self, platform):
         # return platform.request("altera_jtag_reserved")
-        tms = platform.request("altera_reserved_tms")
-        tms.fields["iv"].name = "altera_reserved_tms"
-        tck = platform.request("altera_reserved_tck")
-        tck.fields["iv"].name = "altera_reserved_tck"
-        tdi = platform.request("altera_reserved_tdi")
-        tdi.fields["iv"].name = "altera_reserved_tdi"
-        tdo = platform.request("altera_reserved_tdo")
-        tdo.fields["ov"].name = "altera_reserved_tdo"
+        tms = platform.request("altera_reserved_tms", 0, dir="-")
+        tms.fields["io"].name = "altera_reserved_tms"
+        tck = platform.request("altera_reserved_tck", 0, dir="-")
+        tck.fields["io"].name = "altera_reserved_tck"
+        tdi = platform.request("altera_reserved_tdi", 0, dir="-")
+        tdi.fields["io"].name = "altera_reserved_tdi"
+        tdo = platform.request("altera_reserved_tdo", 0, dir="-")
+        tdo.fields["io"].name = "altera_reserved_tdo"
         class JTAGPads:
             def __init__(self, tms, tck, tdi, tdo):
                 self.altera_reserved_tms = tms
                 self.altera_reserved_tck = tck
                 self.altera_reserved_tdi = tdi
                 self.altera_reserved_tdo = tdo
-        reserved_jtag_pads = JTAGPads(tms.fields["iv"], tck.fields["iv"], tdi.fields["iv"], tdo.fields["ov"])
+        reserved_jtag_pads = JTAGPads(tms.fields["io"], tck.fields["io"], tdi.fields["io"], tdo.fields["io"])
         # reserved_jtag_pads = Record([
         #         ('altera_reserved_tms', tms.fields["i"]),
         #         ('altera_reserved_tck', 1),

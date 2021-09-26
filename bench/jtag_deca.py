@@ -36,4 +36,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     platform = DECA()
     jtag_top = JTAGTop()
-    platform.build(jtag_top, name="jtag_deca", do_build=args.build, do_program=args.prog)
+    platform.build(jtag_top, build_dir="build/jtag_deca", name="jtag_deca", do_build=args.build, do_program=args.prog)
