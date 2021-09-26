@@ -4,6 +4,9 @@ from nmigen import *
 from nmigen.cli import main
 from nmigen.build.dsl import *
 
+import tracemalloc
+tracemalloc.start()
+
 class JTAGTAPFSM(Elaboratable):
     def __init__(self, tms):
         self.tms = tms
@@ -13,12 +16,6 @@ class JTAGTAPFSM(Elaboratable):
 
     def elaborate(self, platform):
         m = Module()
-
-        class FakeFSM:
-            encoding = {'test_logic_reset': 0, 'capture_dr': 1}
-            state = Signal(4)
-
-        # self.fsm = FakeFSM()
 
         # Debug counter tick
         m.d.jtag += self.tck_cnt.eq(self.tck_cnt + 1)
@@ -129,6 +126,9 @@ class AlteraJTAG(Elaboratable):
 
         assert chain == 1
 
+        # TAP FSM
+        self.tap_fsm = JTAGTAPFSM(self.tms)
+
     def add_reserved_jtag_decls(self, platform):
         platform.add_resources([
             Resource("altera_jtag_reserved", 0,
@@ -158,11 +158,12 @@ class AlteraJTAG(Elaboratable):
             jtag_inv.clk.eq(~jtag.clk),
         ]
 
-        m.submodules.tap_fsm = tap_fsm = JTAGTAPFSM(self.tms)
-        tap_fsm.elaborate(platform)
+        # m.submodules.tap_fsm = self.tap_fsm
+        frag = Fragment.get(self.tap_fsm, platform)
+        m.submodules.tap_fsm = frag
         m.d.jtag_inv += [
-            self.reset.eq(tap_fsm.fsm.state == tap_fsm.fsm.encoding["test_logic_reset"]),
-            self.capture.eq(tap_fsm.fsm.state == tap_fsm.fsm.encoding["capture_dr"]),
+            self.reset.eq(self.tap_fsm.fsm.state == self.tap_fsm.fsm.encoding["test_logic_reset"]),
+            self.capture.eq(self.tap_fsm.fsm.state == self.tap_fsm.fsm.encoding["capture_dr"]),
         ]
 
         if platform.device.lower().startswith("10m"):
@@ -216,10 +217,5 @@ if __name__ == "__main__":
     # main(topm, ports=[tms])
     platform = ArrowDECAPlatform()
     jtag = AlteraJTAG()
-    platform.build(jtag, ports=[
-        jtag.rtms,
-        jtag.rtck,
-        jtag.rtdi,
-        jtag.rtdo],
-        do_build=False,
-    )
+    jtag_frag = Fragment.get(jtag, platform)
+    main(jtag_frag, ports=[jtag.rtms, jtag.rtck, jtag.rtdi, jtag.rtdo])
