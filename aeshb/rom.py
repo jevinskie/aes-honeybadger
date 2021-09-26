@@ -132,9 +132,21 @@ class ROM128x16(Elaboratable):
             data = Signal.like(data_l)
             return addr, data
 
-        self.datas32 = []
+        self.addr_data_32 = []
         for rom_l, rom_h in partition(2, self.roms):
             addr2x, data1x = cascade_depthwise(rom_l.addr, rom_l.data, rom_h.addr, rom_h.data)
+            self.addr_data_32.append((addr2x, data1x))
+
+        self.addr_data_64 = []
+        for rom_l, rom_h in partition(2, self.addr_data_32):
+            addr2x, data1x = cascade_depthwise(rom_l[0], rom_l[1], rom_h[0], rom_h[1])
+            self.addr_data_64.append((addr2x, data1x))
+
+        addr_128, data_128 = cascade_depthwise(self.addr_data_64[0][0], self.addr_data_64[0][1],
+                                               self.addr_data_64[1][0], self.addr_data_64[1][1])
+
+        m.d.comb += addr_128.eq(self.addr)
+        m.d.comb += self.data.eq(data_128)
 
         return m
 

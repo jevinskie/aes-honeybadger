@@ -3,7 +3,8 @@
 from nmigen import *
 from nmigen.sim import Simulator, Delay, Settle
 
-from aeshb.rom import ROM16x1, ROM16x8, ROM16x16
+from aeshb.rom import ROM16x1, ROM16x8, ROM16x16, ROM128x16, ROM256x8
+from aeshb.simpleaes import SimpleAES
 
 def test_rom16x1():
     m = Module()
@@ -64,4 +65,44 @@ def test_rom16x16():
 
     sim.add_process(process)
     with sim.write_vcd("rom16x16.vcd", "rom16x16.gtkw", traces=rom.ports()):
+        sim.run()
+
+
+def test_rom128x16():
+    m = Module()
+    addr = Signal(6)
+    init = list(range(128))
+    m.submodules.rom = rom = ROM128x16(addr, init=init)
+
+    sim = Simulator(m)
+
+    def process():
+        for i in range(len(init)):
+            yield addr.eq(i)
+            yield Delay(1e-6)
+            yield Settle()
+            data = yield rom.data
+            assert data == init[i]
+
+    sim.add_process(process)
+    with sim.write_vcd("rom128x16.vcd", "rom128x16.gtkw", traces=rom.ports()):
+        sim.run()
+
+def test_rom256x8():
+    m = Module()
+    addr = Signal(8)
+    m.submodules.rom = rom = ROM256x8(addr, init=SimpleAES.sbox)
+
+    sim = Simulator(m)
+
+    def process():
+        for i in range(len(SimpleAES.sbox)):
+            yield addr.eq(i)
+            yield Delay(1e-6)
+            yield Settle()
+            data = yield rom.data
+            assert data == SimpleAES.sbox[i]
+
+    sim.add_process(process)
+    with sim.write_vcd("rom256x8.vcd", "rom256x8.gtkw", traces=rom.ports()):
         sim.run()
