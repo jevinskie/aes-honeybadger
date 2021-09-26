@@ -45,12 +45,12 @@ class Harness(Elaboratable):
         # static_random = [34502, 10917, 31302, 39655, 62319, 3030, 62137, 43078,
         #                  56956, 59113, 7346, 65069, 22379, 6733, 4648, 4599]
         # m.submodules.rom = rom = ROM16x16(addr, init=static_random)
-        # m.submodules.rom = rom = ROM256x8(addr, init=SimpleAES.sbox)
-        # inputs = [addr]
-        # outputs = [rom.data]
-        m.submodules.sbox = sbox = SBoxROMLUTSplit2x(addr)
+        m.submodules.rom = rom = ROM256x8(addr, init=SimpleAES.sbox, pipelined=True)
         inputs = [addr]
-        outputs = [sbox.out_byte]
+        outputs = [rom.data]
+        # m.submodules.sbox = sbox = SBoxROMLUTSplit2x(addr)
+        # inputs = [addr]
+        # outputs = [sbox.out_byte]
 
 
         m.submodules.hio = hio = HarnessIO(self.sclk, self.copi, self.cipo, self.load, inputs=inputs, outputs=outputs)
