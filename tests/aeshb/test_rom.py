@@ -92,7 +92,8 @@ def test_rom32x16():
 def test_rom128x16():
     m = Module()
     addr = Signal(7)
-    init = list(range(128))
+    # init = list(range(128))
+    init = [random.randint(0, 2**16-1) for i in range(128)]
     m.submodules.rom = rom = ROM128x16(addr, init=init)
 
     sim = Simulator(m)
@@ -112,7 +113,9 @@ def test_rom128x16():
 def test_rom256x8():
     m = Module()
     addr = Signal(8)
-    m.submodules.rom = rom = ROM256x8(addr, init=SimpleAES.sbox)
+    # init = SimpleAES.sbox
+    init = list(range(256))
+    m.submodules.rom = rom = ROM256x8(addr, init=init)
 
     sim = Simulator(m)
 
@@ -122,7 +125,7 @@ def test_rom256x8():
             yield Delay(1e-6)
             yield Settle()
             data = yield rom.data
-            assert data == SimpleAES.sbox[i]
+            assert data == init[i]
 
     sim.add_process(process)
     with sim.write_vcd("rom256x8.vcd", "rom256x8.gtkw", traces=rom.ports()):

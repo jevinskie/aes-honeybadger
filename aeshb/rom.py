@@ -232,10 +232,11 @@ class ROM256x8(Elaboratable):
     def elaborate(self, platform):
         m = Module()
         m.submodules.rom128x16 = self.rom
+        m.d.comb += self.rom_addr.eq(self.addr[1:])
         with m.If(self.addr[0]):
-            m.d.comb += self.data.eq(self.rom.data[:self.width//2])
-        with m.Else():
             m.d.comb += self.data.eq(self.rom.data[self.width//2:])
+        with m.Else():
+            m.d.comb += self.data.eq(self.rom.data[:self.width//2])
         return m
 
     def ports(self):
