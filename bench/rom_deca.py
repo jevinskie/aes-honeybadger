@@ -8,8 +8,9 @@ from nmigen.lib.io import *
 from nmigen.build.dsl import *
 from nmigen.build.res import *
 
-from aeshb.rom import ROM16x1, ROM16x8, ROM16x16
+from aeshb.rom import ROM16x1, ROM16x8, ROM16x16, ROM32x16, ROM128x16, ROM256x8
 from harnessio import HarnessIO
+from aeshb.simpleaes import SimpleAES
 
 class DECA(ArrowDECAPlatform):
     @property
@@ -36,13 +37,14 @@ class Harness(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        addr = Signal(4)
+        addr = Signal(8)
         # m.submodules.rom = rom = ROM16x1(addr, init=0xDEAD)
         # static_random = bytes.fromhex("b2c8c5875fa45462afe35753b9b70f43")
         # m.submodules.rom = rom = ROM16x8(addr, init=static_random)
-        static_random = [34502, 10917, 31302, 39655, 62319, 3030, 62137, 43078,
-                         56956, 59113, 7346, 65069, 22379, 6733, 4648, 4599]
-        m.submodules.rom = rom = ROM16x16(addr, init=static_random)
+        # static_random = [34502, 10917, 31302, 39655, 62319, 3030, 62137, 43078,
+        #                  56956, 59113, 7346, 65069, 22379, 6733, 4648, 4599]
+        # m.submodules.rom = rom = ROM16x16(addr, init=static_random)
+        m.submodules.rom = rom = ROM256x8(addr, init=SimpleAES.sbox)
         inputs = [addr]
         outputs = [rom.data]
 
