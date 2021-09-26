@@ -134,7 +134,7 @@ class AlteraJTAG(Elaboratable):
             Resource("altera_jtag_reserved", 0,
                 Subsignal("altera_reserved_tms", Pins("altera_reserved_tms", dir="i")),
                 Subsignal("altera_reserved_tck", Pins("altera_reserved_tck", dir="i")),
-                Subsignal("altera_reserved_tdi", Pins("altera_reserved_tdi", dir="o")),
+                Subsignal("altera_reserved_tdi", Pins("altera_reserved_tdi", dir="i")),
                 Subsignal("altera_reserved_tdo", Pins("altera_reserved_tdo", dir="o")),
         )])
 
