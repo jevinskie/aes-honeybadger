@@ -13,6 +13,21 @@ from aeshb.le import LELUT4
 from aeshb.utils import bitlist2int
 from aeshb.simpleaes import SimpleAES
 
+
+def cascade_depthwise(m, addr_l, data_l, addr_h, data_h):
+    assert len(addr_l) == len(addr_h) and len(data_l) == len(data_h)
+    addr = Signal(len(addr_l) + 1)
+    data = Signal.like(data_l)
+    m.d.comb += [
+        addr_l.eq(addr[:-1]),
+        addr_h.eq(addr[:-1]),
+    ]
+    with m.If(addr[-1]):
+        m.d.comb += data.eq(data_h)
+    with m.Else():
+        m.d.comb += data.eq(data_l)
+    return addr, data
+
 class ROM16x1(Elaboratable):
     depth = 16
     width = 1
@@ -107,9 +122,10 @@ class ROM32x16(Elaboratable):
     depth = 32
     width = 16
 
-    def __init__(self, addr, init):
+    def __init__(self, addr, init, pipelined=False):
         self.addr = addr
         self.data = Signal(self.width)
+        self.pipelined = pipelined
         assert isinstance(init, Sequence) and len(init) == self.depth
         assert all(0 <= n <= 2 ** self.width for n in init)
         self.init = init
@@ -126,23 +142,13 @@ class ROM32x16(Elaboratable):
             m.submodules[f"rom32x16_subrom16x16_{i}"] = rom
         m.d.comb += self.rom_addr.eq(self.addr[:len(self.rom_addr)])
 
-        def cascade_depthwise(addr_l, data_l, addr_h, data_h):
-            assert len(addr_l) == len(addr_h) and len(data_l) == len(data_h)
-            addr = Signal(len(addr_l) + 1)
-            data = Signal.like(data_l)
-            m.d.comb += [
-                addr_l.eq(addr[:-1]),
-                addr_h.eq(addr[:-1]),
-            ]
-            with m.If(addr[-1]):
-                m.d.comb += data.eq(data_h)
-            with m.Else():
-                m.d.comb += data.eq(data_l)
-            return addr, data
-
         self.addr_data_32 = []
         for rom_l, rom_h in partition(2, self.roms):
-            addr_32, data_32 = cascade_depthwise(rom_l.addr, rom_l.data, rom_h.addr, rom_h.data)
+            addr_32, data_32 = cascade_depthwise(m, rom_l.addr, rom_l.data, rom_h.addr, rom_h.data)
+            if self.pipelined:
+                data_32_reg = Signal.like(data_32)
+                m.d.sync += data_32_reg.eq(data_32)
+                data_32 = data_32_reg
             self.addr_data_32.append((addr_32, data_32))
 
         m.d.comb += self.addr_data_32[0][0].eq(self.addr)
@@ -158,9 +164,10 @@ class ROM128x16(Elaboratable):
     depth = 128
     width = 16
 
-    def __init__(self, addr, init):
+    def __init__(self, addr, init, pipelined=False):
         self.addr = addr
         self.data = Signal(self.width)
+        self.pipelined = pipelined
         assert isinstance(init, Sequence) and len(init) == self.depth
         assert all(0 <= n <= 2 ** self.width for n in init)
         self.init = init
@@ -177,33 +184,19 @@ class ROM128x16(Elaboratable):
             m.submodules[f"rom128x16_subrom16x16_{i}"] = rom
         m.d.comb += self.rom_addr.eq(self.addr[:len(self.rom_addr)])
 
-        def cascade_depthwise(addr_l, data_l, addr_h, data_h):
-            assert len(addr_l) == len(addr_h) and len(data_l) == len(data_h)
-            addr = Signal(len(addr_l) + 1)
-            data = Signal.like(data_l)
-            m.d.comb += [
-                addr_l.eq(addr[:-1]),
-                addr_h.eq(addr[:-1]),
-            ]
-            with m.If(addr[-1]):
-                m.d.comb += data.eq(data_h)
-            with m.Else():
-                m.d.comb += data.eq(data_l)
-            return addr, data
-
         self.addr_data_32 = []
         for rom_l, rom_h in partition(2, self.roms):
-            addr_32, data_32 = cascade_depthwise(rom_l.addr, rom_l.data, rom_h.addr, rom_h.data)
+            addr_32, data_32 = cascade_depthwise(m, rom_l.addr, rom_l.data, rom_h.addr, rom_h.data)
             self.addr_data_32.append((addr_32, data_32))
 
         self.addr_data_64 = []
         for rom_l, rom_h in partition(2, self.addr_data_32):
-            addr_64, data_64 = cascade_depthwise(rom_l[0], rom_l[1], rom_h[0], rom_h[1])
+            addr_64, data_64 = cascade_depthwise(m, rom_l[0], rom_l[1], rom_h[0], rom_h[1])
             self.addr_data_64.append((addr_64, data_64))
 
         self.addr_data_128 = []
         for rom_l, rom_h in partition(2, self.addr_data_64):
-            addr_128, data_128 = cascade_depthwise(rom_l[0], rom_l[1], rom_h[0], rom_h[1])
+            addr_128, data_128 = cascade_depthwise(m, rom_l[0], rom_l[1], rom_h[0], rom_h[1])
             self.addr_data_128.append((addr_128, data_128))
 
         m.d.comb += self.addr_data_128[0][0].eq(self.addr)
@@ -219,15 +212,16 @@ class ROM256x8(Elaboratable):
     depth = 256
     width = 8
 
-    def __init__(self, addr, init):
+    def __init__(self, addr, init, pipelined=False):
         self.addr = addr
         self.data = Signal(self.width)
+        self.pipelined = pipelined
         assert isinstance(init, Sequence) and len(init) == self.depth
         assert all(0 <= n <= 2 ** self.width for n in init)
         self.init = init
         self.rom_addr = Signal(self.width-1)
         self.rom_init = [(x[1] << 8) | x[0] for x in partition(2, init)]
-        self.rom = ROM128x16(self.rom_addr, init=self.rom_init)
+        self.rom = ROM128x16(self.rom_addr, init=self.rom_init, pipelined=pipelined)
 
     def elaborate(self, platform):
         m = Module()

@@ -89,6 +89,28 @@ def test_rom32x16():
     with sim.write_vcd("rom32x16.vcd", "rom32x16.gtkw", traces=rom.ports()):
         sim.run()
 
+def test_rom32x16_pipelined():
+    m = Module()
+    addr = Signal(5)
+    init = list(range(32))
+    # init = [random.randint(0, 2**16-1) for i in range(32)]
+    m.submodules.rom = rom = ROM32x16(addr, init=init, pipelined=True)
+
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
+
+    def process():
+        for i in range(len(init)):
+            yield addr.eq(i)
+            data = yield rom.data
+            # assert data == init[i]
+            yield
+
+    sim.add_sync_process(process)
+    with sim.write_vcd("rom32x16_pipelined.vcd", "rom32x16_pipelined.gtkw", traces=rom.ports()):
+        sim.run()
+
+
 def test_rom128x16():
     m = Module()
     addr = Signal(7)
@@ -116,6 +138,27 @@ def test_rom256x8():
     # init = SimpleAES.sbox
     init = list(range(256))
     m.submodules.rom = rom = ROM256x8(addr, init=init)
+
+    sim = Simulator(m)
+
+    def process():
+        for i in range(len(SimpleAES.sbox)):
+            yield addr.eq(i)
+            yield Delay(1e-6)
+            yield Settle()
+            data = yield rom.data
+            # assert data == init[i]
+
+    sim.add_process(process)
+    with sim.write_vcd("rom256x8.vcd", "rom256x8.gtkw", traces=rom.ports()):
+        sim.run()
+
+def test_rom256x8_pipelined():
+    m = Module()
+    addr = Signal(8)
+    # init = SimpleAES.sbox
+    init = list(range(256))
+    m.submodules.rom = rom = ROM256x8(addr, init=init, pipelined=True)
 
     sim = Simulator(m)
 
