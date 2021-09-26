@@ -14,7 +14,7 @@ from aeshb.utils import bitlist2int
 from aeshb.simpleaes import SimpleAES
 
 
-def cascade_depthwise(m, addr_l, data_l, addr_h, data_h):
+def cascade_depthwise(m, addr_l, data_l, addr_h, data_h, pipelined=False):
     assert len(addr_l) == len(addr_h) and len(data_l) == len(data_h)
     addr = Signal(len(addr_l) + 1)
     data = Signal.like(data_l)
@@ -26,6 +26,12 @@ def cascade_depthwise(m, addr_l, data_l, addr_h, data_h):
         m.d.comb += data.eq(data_h)
     with m.Else():
         m.d.comb += data.eq(data_l)
+
+    if pipelined:
+        data_reg = Signal.like(data)
+        m.d.sync += data_reg.eq(data)
+        data = data_reg
+
     return addr, data
 
 class ROM16x1(Elaboratable):
@@ -144,11 +150,7 @@ class ROM32x16(Elaboratable):
 
         self.addr_data_32 = []
         for rom_l, rom_h in partition(2, self.roms):
-            addr_32, data_32 = cascade_depthwise(m, rom_l.addr, rom_l.data, rom_h.addr, rom_h.data)
-            if self.pipelined:
-                data_32_reg = Signal.like(data_32)
-                m.d.sync += data_32_reg.eq(data_32)
-                data_32 = data_32_reg
+            addr_32, data_32 = cascade_depthwise(m, rom_l.addr, rom_l.data, rom_h.addr, rom_h.data, pipelined=True)
             self.addr_data_32.append((addr_32, data_32))
 
         m.d.comb += self.addr_data_32[0][0].eq(self.addr)
@@ -186,17 +188,25 @@ class ROM128x16(Elaboratable):
 
         self.addr_data_32 = []
         for rom_l, rom_h in partition(2, self.roms):
-            addr_32, data_32 = cascade_depthwise(m, rom_l.addr, rom_l.data, rom_h.addr, rom_h.data)
+            addr_32, data_32 = cascade_depthwise(m, rom_l.addr, rom_l.data, rom_h.addr, rom_h.data, pipelined=True)
             self.addr_data_32.append((addr_32, data_32))
 
         self.addr_data_64 = []
         for rom_l, rom_h in partition(2, self.addr_data_32):
-            addr_64, data_64 = cascade_depthwise(m, rom_l[0], rom_l[1], rom_h[0], rom_h[1])
+            addr_64, data_64 = cascade_depthwise(m, rom_l[0], rom_l[1], rom_h[0], rom_h[1], pipelined=True)
+            if self.pipelined:
+                data_64_reg = Signal.like(data_64)
+                m.d.sync += data_64_reg.eq(data_64)
+                data_64 = data_64_reg
             self.addr_data_64.append((addr_64, data_64))
 
         self.addr_data_128 = []
         for rom_l, rom_h in partition(2, self.addr_data_64):
-            addr_128, data_128 = cascade_depthwise(m, rom_l[0], rom_l[1], rom_h[0], rom_h[1])
+            addr_128, data_128 = cascade_depthwise(m, rom_l[0], rom_l[1], rom_h[0], rom_h[1], pipelined=True)
+            if self.pipelined:
+                data_128_reg = Signal.like(data_128)
+                m.d.sync += data_128_reg.eq(data_128)
+                data_128 = data_128_reg
             self.addr_data_128.append((addr_128, data_128))
 
         m.d.comb += self.addr_data_128[0][0].eq(self.addr)

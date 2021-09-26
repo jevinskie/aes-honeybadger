@@ -161,15 +161,15 @@ def test_rom256x8_pipelined():
     m.submodules.rom = rom = ROM256x8(addr, init=init, pipelined=True)
 
     sim = Simulator(m)
+    sim.add_clock(1e-6)
 
     def process():
-        for i in range(len(SimpleAES.sbox)):
+        for i in range(len(init)):
             yield addr.eq(i)
-            yield Delay(1e-6)
-            yield Settle()
             data = yield rom.data
             # assert data == init[i]
+            yield
 
-    sim.add_process(process)
-    with sim.write_vcd("rom256x8.vcd", "rom256x8.gtkw", traces=rom.ports()):
+    sim.add_sync_process(process)
+    with sim.write_vcd("rom256x8_pipelined.vcd", "rom256x8_pipelined.gtkw", traces=rom.ports()):
         sim.run()
