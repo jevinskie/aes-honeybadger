@@ -147,7 +147,7 @@ class ROM32x16(Elaboratable):
         self.rom_inits = list(partition(ROM16x16.depth, init))
         self.roms = []
         for i in range(self.depth // ROM16x16.depth):
-            rom = ROM16x16(self.rom_addr, init=self.rom_inits[i])
+            rom = ROM16x16(self.rom_addr, init=self.rom_inits[i], pipelined=pipelined)
             self.roms.append(rom)
 
     def elaborate(self, platform):
@@ -158,7 +158,7 @@ class ROM32x16(Elaboratable):
 
         self.addr_data_32 = []
         for rom_l, rom_h in partition(2, self.roms):
-            addr_32, data_32 = cascade_depthwise(m, rom_l.addr, rom_l.data, rom_h.addr, rom_h.data, pipelined=True)
+            addr_32, data_32 = cascade_depthwise(m, rom_l.addr, rom_l.data, rom_h.addr, rom_h.data, pipelined=self.pipelined)
             self.addr_data_32.append((addr_32, data_32))
 
         m.d.comb += self.addr_data_32[0][0].eq(self.addr)
@@ -196,17 +196,17 @@ class ROM128x16(Elaboratable):
 
         self.addr_data_32 = []
         for rom_l, rom_h in partition(2, self.roms):
-            addr_32, data_32 = cascade_depthwise(m, rom_l.addr, rom_l.data, rom_h.addr, rom_h.data, pipelined=True)
+            addr_32, data_32 = cascade_depthwise(m, rom_l.addr, rom_l.data, rom_h.addr, rom_h.data, pipelined=self.pipelined)
             self.addr_data_32.append((addr_32, data_32))
 
         self.addr_data_64 = []
         for rom_l, rom_h in partition(2, self.addr_data_32):
-            addr_64, data_64 = cascade_depthwise(m, rom_l[0], rom_l[1], rom_h[0], rom_h[1], pipelined=True)
+            addr_64, data_64 = cascade_depthwise(m, rom_l[0], rom_l[1], rom_h[0], rom_h[1], pipelined=self.pipelined)
             self.addr_data_64.append((addr_64, data_64))
 
         self.addr_data_128 = []
         for rom_l, rom_h in partition(2, self.addr_data_64):
-            addr_128, data_128 = cascade_depthwise(m, rom_l[0], rom_l[1], rom_h[0], rom_h[1], pipelined=True)
+            addr_128, data_128 = cascade_depthwise(m, rom_l[0], rom_l[1], rom_h[0], rom_h[1], pipelined=self.pipelined)
             self.addr_data_128.append((addr_128, data_128))
 
         m.d.comb += self.addr_data_128[0][0].eq(self.addr)
