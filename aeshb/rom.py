@@ -103,6 +103,57 @@ class ROM16x16(Elaboratable):
         return [self.addr, self.data]
 
 
+class ROM32x16(Elaboratable):
+    depth = 32
+    width = 16
+
+    def __init__(self, addr, init):
+        self.addr = addr
+        self.data = Signal(self.width)
+        assert isinstance(init, Sequence) and len(init) == self.depth
+        assert all(0 <= n <= 2 ** self.width for n in init)
+        self.init = init
+        self.rom_addr = Signal(int(log2(ROM16x16.width)))
+        self.rom_inits = list(partition(ROM16x16.depth, init))
+        self.roms = []
+        for i in range(self.depth // ROM16x16.depth):
+            rom = ROM16x16(self.rom_addr, init=self.rom_inits[i])
+            self.roms.append(rom)
+
+    def elaborate(self, platform):
+        m = Module()
+        for i, rom in enumerate(self.roms):
+            m.submodules[f"rom32x16_subrom16x16_{i}"] = rom
+        m.d.comb += self.rom_addr.eq(self.addr[:len(self.rom_addr)])
+
+        def cascade_depthwise(addr_l, data_l, addr_h, data_h):
+            assert len(addr_l) == len(addr_h) and len(data_l) == len(data_h)
+            addr = Signal(len(addr_l) + 1)
+            data = Signal.like(data_l)
+            m.d.comb += [
+                addr_l.eq(addr[:-1]),
+                addr_h.eq(addr[:-1]),
+            ]
+            with m.If(addr[-1]):
+                m.d.comb += data.eq(data_h)
+            with m.Else():
+                m.d.comb += data.eq(data_l)
+            return addr, data
+
+        self.addr_data_32 = []
+        for rom_l, rom_h in partition(2, self.roms):
+            addr_32, data_32 = cascade_depthwise(rom_l.addr, rom_l.data, rom_h.addr, rom_h.data)
+            self.addr_data_32.append((addr_32, data_32))
+
+        m.d.comb += self.addr_data_32[0][0].eq(self.addr)
+        m.d.comb += self.data.eq(self.addr_data_32[0][1])
+
+        return m
+
+    def ports(self):
+        return [self.addr, self.data]
+
+
 class ROM128x16(Elaboratable):
     depth = 128
     width = 16
@@ -123,30 +174,40 @@ class ROM128x16(Elaboratable):
     def elaborate(self, platform):
         m = Module()
         for i, rom in enumerate(self.roms):
-            m.submodules[f"rom16x16_{i}"] = rom
+            m.submodules[f"rom128x16_subrom16x16_{i}"] = rom
         m.d.comb += self.rom_addr.eq(self.addr[:len(self.rom_addr)])
 
         def cascade_depthwise(addr_l, data_l, addr_h, data_h):
             assert len(addr_l) == len(addr_h) and len(data_l) == len(data_h)
             addr = Signal(len(addr_l) + 1)
             data = Signal.like(data_l)
+            m.d.comb += [
+                addr_l.eq(addr[:-1]),
+                addr_h.eq(addr[:-1]),
+            ]
+            with m.If(addr[-1]):
+                m.d.comb += data.eq(data_h)
+            with m.Else():
+                m.d.comb += data.eq(data_l)
             return addr, data
 
         self.addr_data_32 = []
         for rom_l, rom_h in partition(2, self.roms):
-            addr2x, data1x = cascade_depthwise(rom_l.addr, rom_l.data, rom_h.addr, rom_h.data)
-            self.addr_data_32.append((addr2x, data1x))
+            addr_32, data_32 = cascade_depthwise(rom_l.addr, rom_l.data, rom_h.addr, rom_h.data)
+            self.addr_data_32.append((addr_32, data_32))
 
         self.addr_data_64 = []
         for rom_l, rom_h in partition(2, self.addr_data_32):
-            addr2x, data1x = cascade_depthwise(rom_l[0], rom_l[1], rom_h[0], rom_h[1])
-            self.addr_data_64.append((addr2x, data1x))
+            addr_64, data_64 = cascade_depthwise(rom_l[0], rom_l[1], rom_h[0], rom_h[1])
+            self.addr_data_64.append((addr_64, data_64))
 
-        addr_128, data_128 = cascade_depthwise(self.addr_data_64[0][0], self.addr_data_64[0][1],
-                                               self.addr_data_64[1][0], self.addr_data_64[1][1])
+        self.addr_data_128 = []
+        for rom_l, rom_h in partition(2, self.addr_data_64):
+            addr_128, data_128 = cascade_depthwise(rom_l[0], rom_l[1], rom_h[0], rom_h[1])
+            self.addr_data_128.append((addr_128, data_128))
 
-        m.d.comb += addr_128.eq(self.addr)
-        m.d.comb += self.data.eq(data_128)
+        m.d.comb += self.addr_data_128[0][0].eq(self.addr)
+        m.d.comb += self.data.eq(self.addr_data_128[0][1])
 
         return m
 
@@ -189,6 +250,8 @@ if __name__ == "__main__":
     # static_random = [34502, 10917, 31302, 39655, 62319, 3030, 62137, 43078,
     #                  56956, 59113, 7346, 65069, 22379, 6733, 4648, 4599]
     # rom = ROM16x16(addr, init=static_random)
-    addr = Signal(8)
-    rom256x8 = ROM256x8(addr, init=SimpleAES.sbox)
-    main(rom256x8, ports=[addr, rom256x8.data])
+    # addr = Signal(8)
+    # rom256x8 = ROM256x8(addr, init=SimpleAES.sbox)
+    addr = Signal(5)
+    rom = ROM32x16(addr, init=list(range(32)))
+    main(rom, ports=[addr, rom.data])

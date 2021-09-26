@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
+import random
 
 from nmigen import *
 from nmigen.sim import Simulator, Delay, Settle
 
-from aeshb.rom import ROM16x1, ROM16x8, ROM16x16, ROM128x16, ROM256x8
+from aeshb.rom import ROM16x1, ROM16x8, ROM16x16, ROM32x16, ROM128x16, ROM256x8
 from aeshb.simpleaes import SimpleAES
 
 def test_rom16x1():
@@ -67,6 +68,26 @@ def test_rom16x16():
     with sim.write_vcd("rom16x16.vcd", "rom16x16.gtkw", traces=rom.ports()):
         sim.run()
 
+def test_rom32x16():
+    m = Module()
+    addr = Signal(5)
+    # init = list(range(32))
+    init = [random.randint(0, 2**16-1) for i in range(32)]
+    m.submodules.rom = rom = ROM32x16(addr, init=init)
+
+    sim = Simulator(m)
+
+    def process():
+        for i in range(len(init)):
+            yield addr.eq(i)
+            yield Delay(1e-6)
+            yield Settle()
+            data = yield rom.data
+            assert data == init[i]
+
+    sim.add_process(process)
+    with sim.write_vcd("rom32x16.vcd", "rom32x16.gtkw", traces=rom.ports()):
+        sim.run()
 
 def test_rom128x16():
     m = Module()
