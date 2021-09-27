@@ -132,10 +132,10 @@ class AlteraJTAG(Elaboratable):
     def add_reserved_jtag_decls(self, platform):
         # platform.add_resources([
         #     Resource("altera_jtag_reserved", 0,
-        #         Subsignal("altera_reserved_tms", Pins("altera_reserved_tms", dir="i")),
-        #         Subsignal("altera_reserved_tck", Pins("altera_reserved_tck", dir="i")),
-        #         Subsignal("altera_reserved_tdi", Pins("altera_reserved_tdi", dir="i")),
-        #         Subsignal("altera_reserved_tdo", Pins("altera_reserved_tdo", dir="o")),
+        #         Subsignal("altera_reserved_tms", Pins("altera_reserved_tms", dir="i"), Attrs(VIRTUAL="True")),
+        #         Subsignal("altera_reserved_tck", Pins("altera_reserved_tck", dir="i"), Attrs(VIRTUAL="True")),
+        #         Subsignal("altera_reserved_tdi", Pins("altera_reserved_tdi", dir="i"), Attrs(VIRTUAL="True")),
+        #         Subsignal("altera_reserved_tdo", Pins("altera_reserved_tdo", dir="o"), Attrs(VIRTUAL="True")),
         # )])
         platform.add_resources([
             Resource("altera_reserved_tms", 0, Pins("altera_reserved_tms", dir="i"), Attrs(VIRTUAL="True")),
@@ -145,7 +145,9 @@ class AlteraJTAG(Elaboratable):
         ])
 
     def get_reserved_jtag_pads(self, platform):
-        # return platform.request("altera_jtag_reserved")
+        # reserved_jtag_pads = platform.request("altera_jtag_reserved", dir={"altera_reserved_tms": "-", "altera_reserved_tck": "-", "altera_reserved_tdi": "-", "altera_reserved_tdo": "-"})
+        # reserved_jtag_pads.altera_reserved_tms.name = "altera_reserved_tms"
+        # return reserved_jtag_pads
         tms = platform.request("altera_reserved_tms", 0, dir="-")
         tms.fields["io"].name = "altera_reserved_tms"
         tck = platform.request("altera_reserved_tck", 0, dir="-")
@@ -154,21 +156,21 @@ class AlteraJTAG(Elaboratable):
         tdi.fields["io"].name = "altera_reserved_tdi"
         tdo = platform.request("altera_reserved_tdo", 0, dir="-")
         tdo.fields["io"].name = "altera_reserved_tdo"
-        class JTAGPads:
-            def __init__(self, tms, tck, tdi, tdo):
-                self.altera_reserved_tms = tms
-                self.altera_reserved_tck = tck
-                self.altera_reserved_tdi = tdi
-                self.altera_reserved_tdo = tdo
-        reserved_jtag_pads = JTAGPads(tms.fields["io"], tck.fields["io"], tdi.fields["io"], tdo.fields["io"])
-        # reserved_jtag_pads = Record([
-        #         ('altera_reserved_tms', tms.fields["i"]),
-        #         ('altera_reserved_tck', 1),
-        #         ('altera_reserved_tdi', 1),
-        #         ('altera_reserved_tdo', 1),
-        #     ],
-        #     name='altera_jtag_reserved',
-        # )
+        # class JTAGPads:
+        #     def __init__(self, tms, tck, tdi, tdo):
+        #         self.altera_reserved_tms = tms
+        #         self.altera_reserved_tck = tck
+        #         self.altera_reserved_tdi = tdi
+        #         self.altera_reserved_tdo = tdo
+        # reserved_jtag_pads = JTAGPads(tms.fields["io"], tck.fields["io"], tdi.fields["io"], tdo.fields["io"])
+        reserved_jtag_pads = Record([
+                ('altera_reserved_tms', 1, tms.fields["io"]),
+                ('altera_reserved_tck', 1),
+                ('altera_reserved_tdi', 1),
+                ('altera_reserved_tdo', 1),
+            ],
+            name='altera_jtag_reserved',
+        )
         return reserved_jtag_pads
 
     def elaborate(self, platform):
@@ -236,6 +238,29 @@ class AlteraJTAG(Elaboratable):
         m.d.jtag_inv += self.tdouser.eq(self.tdo)
 
         return m
+
+
+class JTAGHello(Elaboratable):
+    def __init__(self, tms: Signal, tck: Signal, tdi: Signal, tdo: Signal, rst: Signal, phy: Module):
+        self.hello_dr = hello_dr = Signal(32, reset=0xAA00FF55)
+
+        # self.comb += tdo.eq(hello_dr[0])
+        self.hello_inner_tdo = hello_inner_tdo = Signal()
+        self.comb += tdo.eq(hello_inner_tdo)
+
+        self.sync.jtag += [
+            If(phy.reset | phy.capture,
+                hello_dr.eq(hello_dr.reset),
+            ).Elif(phy.shift,
+                hello_dr.eq(Cat(hello_dr[1:], tdi)),
+            ),
+        ]
+
+        self.comb += hello_inner_tdo.eq(hello_dr[0])
+        # self.sync.jtag_inv += hello_inner_tdo.eq(hello_dr[0])
+
+        # # #
+
 
 if __name__ == "__main__":
     from nmigen_boards.arrow_deca import ArrowDECAPlatform
