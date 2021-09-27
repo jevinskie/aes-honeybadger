@@ -70,17 +70,18 @@ class USBBlaster2:
 
     def spam(self):
         self._epo.write(bytes([2, 3]*16 + [0] * 48))
-        obuf = bytes([0, (1<<6)|1] * 16)
+        obuf = bytes([(1<<6)|0, (1<<6)|1] * 16)
         print(obuf.hex())
         print(len(obuf))
         # obuf += bytes(64-len(obuf))
         print(obuf.hex())
         print(len(obuf))
-        # r = self._epo.write(obuf)
-        r = self._epo.write(bytes.fromhex('c7efbeadde0000005f'))
+        r = self._epo.write(obuf + bytes([0x5f]))
+        # r = self._epo.write(bytes.fromhex('c7efbeadde0000005f004100415f'))
+        self._epo.write(bytes(64))
         print(f"write res: {r}")
         # r = self._epo.write(bytes([0x5f]))
-        r = self._epi.read(512)
+        r = self._epi.read(64)
         print(f"read res: {r}, len: {len(r)}")
         if len(r) != 64:
             print(f"warning got unexpected length")
