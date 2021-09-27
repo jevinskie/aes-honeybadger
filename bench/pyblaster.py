@@ -69,7 +69,7 @@ class USBBlaster2:
         pass
 
     def spam(self):
-        obuf = bytes([(1<<6)|1, (1<<6)|0] * 32)
+        obuf = bytes([(1<<6)|(1<<5)|1, (1<<6)|(1<<5)|0] * 32)
         r = self._epo.write(obuf)
         print(f"write res: {r}")
         r = self._epo.write(bytes([0x5f]))
