@@ -4,8 +4,7 @@ from nmigen import *
 from nmigen.cli import main
 from nmigen.build.dsl import *
 
-import tracemalloc
-tracemalloc.start()
+from aeshb.utils import run_once
 
 class JTAGTAPFSM(Elaboratable):
     def __init__(self, tms):
@@ -129,6 +128,7 @@ class AlteraJTAG(Elaboratable):
         # TAP FSM
         self.tap_fsm = JTAGTAPFSM(self.tms)
 
+    # @run_once
     def add_reserved_jtag_decls(self, platform):
         platform.add_resources([
             Resource("altera_reserved_tms", 0, Pins("altera_reserved_tms", dir="i"), Attrs(VIRTUAL="True")),
@@ -223,26 +223,19 @@ class AlteraJTAG(Elaboratable):
 
 
 class JTAGHello(Elaboratable):
-    def __init__(self, tms: Signal, tck: Signal, tdi: Signal, tdo: Signal, rst: Signal, phy: Module):
-        self.hello_dr = hello_dr = Signal(32, reset=0xAA00FF55)
+    def __init__(self, jtag_phy):
+        self.jtag_phy = jtag_phy
+        self.hello_dr = Signal(32, reset=0xAA00FF55, reset_less=True)
 
-        # self.comb += tdo.eq(hello_dr[0])
-        self.hello_inner_tdo = hello_inner_tdo = Signal()
-        self.comb += tdo.eq(hello_inner_tdo)
-
-        self.sync.jtag += [
-            If(phy.reset | phy.capture,
-                hello_dr.eq(hello_dr.reset),
-            ).Elif(phy.shift,
-                hello_dr.eq(Cat(hello_dr[1:], tdi)),
-            ),
-        ]
-
-        self.comb += hello_inner_tdo.eq(hello_dr[0])
-        # self.sync.jtag_inv += hello_inner_tdo.eq(hello_dr[0])
-
-        # # #
-
+    def elaborate(self, platform):
+        m = Module()
+        m.submodules.jtag_phy = self.jtag_phy
+        m.d.comb += self.jtag_phy.tdo.eq(self.hello_dr[0])
+        with m.If(self.jtag_phy.reset | self.jtag_phy.capture):
+            m.d.jtag += self.hello_dr.eq(self.hello_dr.reset)
+        with m.Elif(self.jtag_phy.shift):
+            m.d.jtag += self.hello_dr.eq(Cat(self.hello_dr[1:], self.jtag_phy.tdi))
+        return m
 
 if __name__ == "__main__":
     from nmigen_boards.arrow_deca import ArrowDECAPlatform
