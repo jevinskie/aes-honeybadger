@@ -156,7 +156,6 @@ class AlteraJTAG(Elaboratable):
         return reserved_jtag_pads
 
     def elaborate(self, platform):
-        print("ELABORATING JTAG")
         m = Module()
 
         self.add_reserved_jtag_decls(platform)
@@ -173,12 +172,11 @@ class AlteraJTAG(Elaboratable):
             jtag_inv.clk.eq(~jtag.clk),
         ]
 
-        m.submodules.tap_fsm = self.tap_fsm
-        # frag = Fragment.get(self.tap_fsm, platform)
-        # m.submodules.tap_fsm = frag
+        tap_fsm_frag = Fragment.get(self.tap_fsm, platform)
+        m.submodules.tap_fsm = tap_fsm_frag
         m.d.jtag_inv += [
-            # self.reset.eq(self.tap_fsm.fsm.state == self.tap_fsm.fsm.encoding["test_logic_reset"]),
-            # self.capture.eq(self.tap_fsm.fsm.state == self.tap_fsm.fsm.encoding["capture_dr"]),
+            self.reset.eq(self.tap_fsm.fsm.state == self.tap_fsm.fsm.encoding["test_logic_reset"]),
+            self.capture.eq(self.tap_fsm.fsm.state == self.tap_fsm.fsm.encoding["capture_dr"]),
         ]
 
         if platform.device.lower().startswith("10m"):
@@ -230,7 +228,6 @@ class JTAGHello(Elaboratable):
 
     def elaborate(self, platform):
         m = Module()
-        m.submodules.jtag_phy = self.jtag_phy
         m.d.comb += self.jtag_phy.tdo.eq(self.hello_dr[0])
         with m.If(self.jtag_phy.reset | self.jtag_phy.capture):
             m.d.jtag += self.hello_dr.eq(self.hello_dr.reset)

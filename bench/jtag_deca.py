@@ -21,17 +21,29 @@ class DECA(ArrowDECAPlatform):
                 """,
         }
 
+class Blinky(Elaboratable):
+    def elaborate(self, platform):
+        led   = Cat([platform.request("led", i).o for i in range(8)])
+        timer = Signal(32)
+
+        m = Module()
+        m.d.sync += timer.eq(timer + 1)
+        m.d.comb += led.eq(timer[-8:])
+        return m
+
 
 class JTAGTop(Elaboratable):
     def __init__(self):
         self.jtag_phy = AlteraJTAG()
         self.jtag_hello = JTAGHello(self.jtag_phy)
+        self.blinky = Blinky()
 
     def elaborate(self, platform):
         m = Module()
 
         m.submodules.jtag_phy = self.jtag_phy
         m.submodules.jtag_hello = self.jtag_hello
+        m.submodules.blinky = self.blinky
 
         return m
 
@@ -39,8 +51,8 @@ class JTAGTop(Elaboratable):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--build", action="store_true")
-    parser.add_argument("--prog", action="store_true")
+    parser.add_argument("--load", action="store_true")
     args = parser.parse_args()
     platform = DECA()
     jtag_top = JTAGTop()
-    platform.build(jtag_top, build_dir="build/jtag_deca", name="jtag_deca", do_build=args.build, do_program=args.prog)
+    platform.build(jtag_top, build_dir="build/jtag_deca", name="jtag_deca", do_build=args.build, do_program=args.load)
