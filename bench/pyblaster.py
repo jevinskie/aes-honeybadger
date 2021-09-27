@@ -69,10 +69,17 @@ class USBBlaster2:
         pass
 
     def spam(self):
-        obuf = bytes([(1<<6)|(1<<5)|1, (1<<6)|(1<<5)|0] * 32)
-        r = self._epo.write(obuf)
+        self._epo.write(bytes([2, 3]*16 + [0] * 48))
+        obuf = bytes([0, (1<<6)|1] * 16)
+        print(obuf.hex())
+        print(len(obuf))
+        # obuf += bytes(64-len(obuf))
+        print(obuf.hex())
+        print(len(obuf))
+        # r = self._epo.write(obuf)
+        r = self._epo.write(bytes.fromhex('c7efbeadde0000005f'))
         print(f"write res: {r}")
-        r = self._epo.write(bytes([0x5f]))
+        # r = self._epo.write(bytes([0x5f]))
         r = self._epi.read(512)
         print(f"read res: {r}, len: {len(r)}")
         if len(r) != 64:
