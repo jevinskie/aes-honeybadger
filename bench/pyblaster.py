@@ -138,7 +138,7 @@ class USBBlaster2(AutoFinalizedObject):
             bh = bl | BBit.TCK | BBit.READ
             self._last_tdi = b
             obuf += bytes([bl, bh])
-        obuf += bytes([0x5f])
+        # obuf += bytes([0x5f])
         print(f"ticking tdi with {len(obuf)} {obuf.hex()}")
         r = self._epo.write(obuf)
         print(f"tdi r: {r}")
@@ -150,6 +150,7 @@ class USBBlaster2(AutoFinalizedObject):
         # return bs
 
     def read_from_buffer(self, sz):
+        self._epo.write(bytes([0x5f]))
         ibuf = self._epi.read(512)
         print(f"read_from_buffer len: {len(ibuf)}")
         bsin = "".join(map(str, [b & 1 for b in ibuf]))
@@ -238,10 +239,16 @@ def main():
     # engine.change_state("capture")
     # r = tool.detect_register_size()
     # print(f"register size: {r}")
-    r = tool.idcode()
-    print(f"idcode: {r}")
-    # engine.write_ir(BitSequence(6, msb=True, length=10))
-    # print(engine.read_dr(32))
+    # r = tool.idcode()
+    # print(f"idcode: {r}")
+
+    engine.reset()
+
+    # engine.write_ir(BitSequence('0000000110', msb=True))
+    engine.write_ir(BitSequence('0000000110', msb=True, length=10))
+    r = engine.read_dr(32)
+    print(r)
+    print(r.tobytes().hex())
 
 if __name__ == "__main__":
     main()
