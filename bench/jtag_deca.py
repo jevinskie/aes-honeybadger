@@ -60,8 +60,9 @@ class JTAGTop(Elaboratable):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--build", action="store_true")
+    parser.add_argument("--gen", action="store_true")
     parser.add_argument("--load", action="store_true")
     args = parser.parse_args()
     platform = DECA()
     jtag_top = JTAGTop()
-    platform.build(jtag_top, build_dir="build/jtag_deca", name="jtag_deca", do_build=args.build, do_gen=True, do_program=args.load)
+    platform.build(jtag_top, build_dir="build/jtag_deca", name="jtag_deca", do_build=args.build, do_gen_only=args.gen, do_program=args.load)

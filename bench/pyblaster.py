@@ -108,8 +108,8 @@ class USBBlaster2(AutoFinalizedObject):
         self._last_tms = b
 
     def tick_tdo(self, nbits):
-        bl = self.make_byte(self._last_tms, self._last_tdi, read=True)
-        bh = bl | BBit.TCK
+        bl = self.make_byte(self._last_tms, self._last_tdi)
+        bh = bl | BBit.TCK | BBit.READ
         obuf = bytes([bl, bh] * nbits) + bytes([0x5f])  # flush w/ 5f
         self._epo.write(obuf)
         ibuf = self._epi.read(512)
@@ -151,6 +151,7 @@ class USBBlaster2(AutoFinalizedObject):
 
     def read_from_buffer(self, sz):
         ibuf = self._epi.read(512)
+        print(f"read_from_buffer len: {len(ibuf)}")
         bsin = "".join(map(str, [b & 1 for b in ibuf]))
         print(f"bsin: {bsin}")
         bs = BitSequence(bsin)
@@ -230,13 +231,17 @@ def main():
     print(engine)
     tool = JtagTool(engine)
     print(tool)
-    # r = tool.idcode()
-    # print(f"idcode: {r}")
-    engine.change_state("shift_ir")
-    # engine.change_state("capture")
-    r = tool.detect_register_size()
-    print(f"register size: {r}")
 
+    # engine.change_state("shift_ir")
+    # engine.change_state("test_logic_reset")
+    # engine.change_state("run_test_idle")
+    # engine.change_state("capture")
+    # r = tool.detect_register_size()
+    # print(f"register size: {r}")
+    r = tool.idcode()
+    print(f"idcode: {r}")
+    # engine.write_ir(BitSequence(6, msb=True, length=10))
+    # print(engine.read_dr(32))
 
 if __name__ == "__main__":
     main()
