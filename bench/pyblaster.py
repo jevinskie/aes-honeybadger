@@ -14,7 +14,7 @@ from pyftdi.jtag import *
 # ctypes.macholib.dyld.DEFAULT_LIBRARY_FALLBACK.append('/opt/homebrew-x86/lib')
 import usb.core
 import usb.util
-# from usb._objfinalizer import AutoFinalizedObject
+from usb._objfinalizer import AutoFinalizedObject
 
 import attr
 
@@ -23,9 +23,20 @@ from bitfield import *
 VID: Final[int] = 0x09fb
 PID: Final[int] = 0x6010
 
+
 class CtrlReqType(enum.IntEnum):
     GET_READ_REV:  Final[int] = 0x94
 
+
+class BBit(enum.IntEnum):
+    BYTE_SHIFT: Final[int] = (1 << 7)
+    READ:       Final[int] = (1 << 6)
+    LED:        Final[int] = (1 << 5)
+    TDI:        Final[int] = (1 << 4)
+    NCS:        Final[int] = (1 << 3)
+    NCE:        Final[int] = (1 << 2)
+    TMS:        Final[int] = (1 << 1)
+    TCK:        Final[int] = (1 << 0)
 
 class BlasterByte(BitFieldUnion):
     byte_shift = BitField(7, 1)
@@ -38,8 +49,9 @@ class BlasterByte(BitFieldUnion):
     tck        = BitField(0, 1)
     nbytes     = BitField(0, 6)
 
+
 @attr.s()
-class USBBlaster2:
+class USBBlaster2(AutoFinalizedObject):
     _dev = attr.ib(init=False, default=usb.core.find(idVendor=VID, idProduct=PID))
     _cfg = attr.ib(init=False)
     _intf = attr.ib(init=False)
@@ -73,6 +85,12 @@ class USBBlaster2:
         self.revision = self.get_revision()
         print(f"revision: {self.revision}")
 
+    def _finalize_object(self):
+        self.flush()
+
+    def flush(self):
+        self._epo.write(bytes(64))
+
     def get_revision(self):
         rev = self._dev.ctrl_transfer(usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_RECIPIENT_INTERFACE | usb.util.CTRL_IN,
                                       CtrlReqType.GET_READ_REV, 0, 0, 5)
@@ -80,8 +98,19 @@ class USBBlaster2:
         return rev
 
     @classmethod
-    def make_byte(cls, tms, tdi):
-        pass
+    def make_byte(cls, tms, tdi, read=False):
+        b = BBit.LED
+        if read:
+            b |= BBit.READ
+        if tms:
+            b |= BBit.TMS
+        if tdi:
+            b |= BBit.TDI
+        return b
+
+    @classmethod
+    def make_clock_bytes(cls, b):
+        return b, b | BBit.TCK
 
     def spam(self):
         self._epo.write(bytes([2, 3]*5))
@@ -99,7 +128,7 @@ class USBBlaster2:
         # b = BlasterByte(byte_shift=True, read=True, nbytes=l)
         # obuf = bytes([b.packed]) + obuf + bytes.fromhex('5f')
         # obuf = obuf + obuf
-        obuf = bytes.fromhex('2e2f')*1 + bytes.fromhex('2c6d') * 1 + bytes([0x5f])
+        obuf = bytes.fromhex('2e2f')*5 + bytes.fromhex('2c6d') * 64 + bytes([0x5f])
         print(f"obuf len: {len(obuf)} {obuf.hex()}")
         r = self._epo.write(obuf)
         print(f"write res: {r}")
@@ -111,6 +140,7 @@ class USBBlaster2:
         print(f"read res: {r}, len: {len(r)}")
         if len(r) != 64:
             print(f"warning got unexpected length")
+        self._epo.write(bytes([0x5f]))
         r = self._epi.read(512)
         print(f"read2 res: {r}, len: {len(r)}")
 
