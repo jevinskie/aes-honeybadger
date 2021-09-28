@@ -57,6 +57,8 @@ class USBBlaster2(AutoFinalizedObject):
     _intf = attr.ib(init=False)
     _epo = attr.ib(init=False)
     _epi = attr.ib(init=False)
+    _last_tms = attr.ib(init=False)
+    _last_tdi = attr.ib(init=False)
 
     def __attrs_post_init__(self):
         self._dev.reset()
@@ -84,6 +86,8 @@ class USBBlaster2(AutoFinalizedObject):
 
         self.revision = self.get_revision()
         print(f"revision: {self.revision}")
+        self._last_tms = None
+        self._last_tdi = None
 
     def _finalize_object(self):
         self.flush()
@@ -96,6 +100,63 @@ class USBBlaster2(AutoFinalizedObject):
                                       CtrlReqType.GET_READ_REV, 0, 0, 5)
         rev = bytes(rev).decode().rstrip("\0")
         return rev
+
+    def tick_tms(self, b):
+        bl, bh = self.make_clock_bytes(self.make_byte(b, self._last_tdi))
+        r = self._epo.write(bytes([bl, bh]))
+        print(f"tick_tms r: {r}")
+        self._last_tms = b
+
+    def tick_tdo(self, nbits):
+        bl = self.make_byte(self._last_tms, self._last_tdi, read=True)
+        bh = bl | BBit.TCK
+        obuf = bytes([bl, bh] * nbits) + bytes([0x5f])  # flush w/ 5f
+        self._epo.write(obuf)
+        ibuf = self._epi.read(512)
+        print(f"ibuf: len: {len(ibuf)} {ibuf}")
+        bsin = "".join(map(str, [b & 1 for b in ibuf]))
+        print(f"bsin: {bsin}")
+        bs = BitSequence(bsin)
+        print(f"bs: {bs}")
+        return bs
+
+    def tick_tdi(self, bout):
+        obuf = bytes()
+        for b in bout:
+            bl = self.make_byte(self._last_tms, b)
+            bh = bl | BBit.TCK
+            self._last_tdi = b
+            obuf += bytes([bl, bh])
+        print(f"ticking tdi with {len(obuf)} {obuf.hex()}")
+        r = self._epo.write(obuf)
+        print(f"tdi r: {r}")
+
+    def tick_tdi_with_tdo(self, bout):
+        obuf = bytes()
+        for b in bout:
+            bl = self.make_byte(self._last_tms, b)
+            bh = bl | BBit.TCK | BBit.READ
+            self._last_tdi = b
+            obuf += bytes([bl, bh])
+        obuf += bytes([0x5f])
+        print(f"ticking tdi with {len(obuf)} {obuf.hex()}")
+        r = self._epo.write(obuf)
+        print(f"tdi r: {r}")
+        # ibuf = self._epi.read(512)
+        # bsin = "".join(map(str, [b & 1 for b in ibuf]))
+        # print(f"bsin: {bsin}")
+        # bs = BitSequence(bsin)
+        # print(f"bs: {bs}")
+        # return bs
+
+    def read_from_buffer(self, sz):
+        ibuf = self._epi.read(512)
+        bsin = "".join(map(str, [b & 1 for b in ibuf]))
+        print(f"bsin: {bsin}")
+        bs = BitSequence(bsin)
+        print(f"bs: {bs}")
+        return bs
+
 
     @classmethod
     def make_byte(cls, tms, tdi, read=False):
@@ -112,59 +173,6 @@ class USBBlaster2(AutoFinalizedObject):
     def make_clock_bytes(cls, b):
         return b, b | BBit.TCK
 
-    def spam(self):
-        self._epo.write(bytes([2, 3]*5))
-        # obuf = bytes([(1<<6)|0, (1<<6)|1] * 16)
-        # print(obuf.hex())
-        # print(len(obuf))
-        # obuf += bytes(64-len(obuf))
-        # print(obuf.hex())
-        # print(len(obuf))
-        # r = self._epo.write(obuf + bytes([0x5f]))
-        # r = self._epo.write(bytes.fromhex('c7efbeadde0000005f004100415f'))
-        # self._epo.write(bytes(64))
-        # obuf = bytes.fromhex('00112233445566778899aabbccddeeff')
-        # l = len(obuf)
-        # b = BlasterByte(byte_shift=True, read=True, nbytes=l)
-        # obuf = bytes([b.packed]) + obuf + bytes.fromhex('5f')
-        # obuf = obuf + obuf
-        obuf = bytes.fromhex('2e2f')*5 + bytes.fromhex('2c6d') * 64 + bytes([0x5f])
-        print(f"obuf len: {len(obuf)} {obuf.hex()}")
-        r = self._epo.write(obuf)
-        print(f"write res: {r}")
-        # self._epo.write(bytes(64))
-        # rf = self._epo.write(bytes(64))
-        # print(f"flush res: {rf}")
-        # r = self._epo.write(bytes([0x5f]))
-        r = self._epi.read(512)
-        print(f"read res: {r}, len: {len(r)}")
-        if len(r) != 64:
-            print(f"warning got unexpected length")
-        self._epo.write(bytes([0x5f]))
-        r = self._epi.read(512)
-        print(f"read2 res: {r}, len: {len(r)}")
-
-    def read(self, sz):
-        return self.xfer(b'\x00' * sz)
-
-    def write(self, buf):
-        self.xfer(buf)
-        return
-
-    def xfer(self, buf):
-        return_int = False
-        if isinstance(buf, str):
-            buf = bytes.fromhex(buf)
-        if isinstance(buf, int) and 0 <= buf <= 0xff:
-            buf = bytes([buf])
-            return_int = True
-        assert len(buf) < 60 # FIXME: HACK
-        self._epo.write(buf)
-        ret = bytes(self._epi.read(len(buf)))
-        if return_int:
-            ret = ret[0]
-        return ret
-
 
 class BlasterJTAGController(JtagController):
     def __init__(self):
@@ -180,39 +188,55 @@ class BlasterJTAGController(JtagController):
         raise NotImplementedError
 
     def reset(self, sync: bool = False) -> None:
-        raise NotImplementedError
+        self.write_tms(BitSequence('11111'))
 
     def sync(self) -> None:
         raise NotImplementedError
 
     def write_tms(self, tms: BitSequence,
-                  should_read: bool=False) -> None:
-        self.p(f'write_tms(should_read={should_read}) with {tms}')
+                  should_read: bool = False) -> None:
+        print(f'write_tms(should_read={should_read}) with {tms}')
         for b in tms:
-            tick_tms_ext(self.dut, b)
+            self.blaster.tick_tms(b)
 
     def read(self, length: int) -> BitSequence:
-        self.p(f'read({length})')
-        tdo = tick_tdo_ext(self.dut, length)
+        print(f'read({length})')
+        tdo = self.blaster.tick_tdo(length)
         return tdo
 
     def write(self, out: Union[BitSequence, str], use_last: bool = True):
-        self.p(f'write(use_last={use_last}) with {out}')
-        tick_tdi_ext(self.dut, out)
+        print(f'write(use_last={use_last}) with {out}')
+        self.blaster.tick_tdi(out)
 
 
     def write_with_read(self, out: BitSequence,
                         use_last: bool = False) -> int:
-        raise NotImplementedError
+        if use_last:
+            raise NotImplementedError
+        self.blaster.tick_tdi_with_tdo(out)
 
     def read_from_buffer(self, length) -> BitSequence:
-        raise NotImplementedError
+        bs = self.blaster.read_from_buffer(length)
+        return bs
 
 
 def main():
-    blaster = USBBlaster2()
-    print(blaster)
-    blaster.spam()
+    # blaster = USBBlaster2()
+    # print(blaster)
+    ctrl = BlasterJTAGController()
+    print(ctrl)
+    engine = JtagEngine(ctrl=ctrl)
+    engine.reset()
+    print(engine)
+    tool = JtagTool(engine)
+    print(tool)
+    # r = tool.idcode()
+    # print(f"idcode: {r}")
+    engine.change_state("shift_ir")
+    # engine.change_state("capture")
+    r = tool.detect_register_size()
+    print(f"register size: {r}")
+
 
 if __name__ == "__main__":
     main()
