@@ -37,9 +37,16 @@ class JTAGTop(Elaboratable):
         self.jtag_phy = AlteraJTAG()
         self.jtag_hello = JTAGHello(self.jtag_phy)
         self.blinky = Blinky()
+        self.ports = None
+        self._ports = None
 
     def elaborate(self, platform):
         m = Module()
+
+        self.a = a = Signal()
+        self.b = b = Signal()
+        self.c = c = Signal()
+        m.d.comb += c.eq(a ^ b)
 
         m.submodules.jtag_phy = self.jtag_phy
         m.submodules.jtag_hello = self.jtag_hello
@@ -47,6 +54,8 @@ class JTAGTop(Elaboratable):
 
         return m
 
+    def ports(self):
+        raise NotImplementedError()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -55,4 +64,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     platform = DECA()
     jtag_top = JTAGTop()
-    platform.build(jtag_top, build_dir="build/jtag_deca", name="jtag_deca", do_build=args.build, do_program=args.load)
+    platform.build(jtag_top, build_dir="build/jtag_deca", name="jtag_deca", do_build=args.build, do_gen=True, do_program=args.load)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import enum
+import sys
 from typing import Final
 
 from rich import print
@@ -17,11 +18,25 @@ import usb.util
 
 import attr
 
+from bitfield import *
+
 VID: Final[int] = 0x09fb
 PID: Final[int] = 0x6010
 
 class CtrlReqType(enum.IntEnum):
     GET_READ_REV:  Final[int] = 0x94
+
+
+class BlasterByte(BitFieldUnion):
+    byte_shift = BitField(7, 1)
+    read       = BitField(6, 1)
+    led        = BitField(5, 1)
+    tdi        = BitField(4, 1)
+    ncs        = BitField(3, 1)
+    nce        = BitField(2, 1)
+    tms        = BitField(1, 1)
+    tck        = BitField(0, 1)
+    nbytes     = BitField(0, 6)
 
 @attr.s()
 class USBBlaster2:
@@ -69,22 +84,34 @@ class USBBlaster2:
         pass
 
     def spam(self):
-        self._epo.write(bytes([2, 3]*16 + [0] * 48))
-        obuf = bytes([(1<<6)|0, (1<<6)|1] * 16)
-        print(obuf.hex())
-        print(len(obuf))
+        self._epo.write(bytes([2, 3]*5))
+        # obuf = bytes([(1<<6)|0, (1<<6)|1] * 16)
+        # print(obuf.hex())
+        # print(len(obuf))
         # obuf += bytes(64-len(obuf))
-        print(obuf.hex())
-        print(len(obuf))
-        r = self._epo.write(obuf + bytes([0x5f]))
+        # print(obuf.hex())
+        # print(len(obuf))
+        # r = self._epo.write(obuf + bytes([0x5f]))
         # r = self._epo.write(bytes.fromhex('c7efbeadde0000005f004100415f'))
-        self._epo.write(bytes(64))
+        # self._epo.write(bytes(64))
+        obuf = bytes.fromhex('00112233445566778899aabbccddeeff')
+        l = len(obuf)
+        b = BlasterByte(byte_shift=True, read=True, nbytes=l)
+        # obuf = bytes([b.packed]) + obuf + bytes.fromhex('00')
+        obuf = bytes.fromhex('2e2f')*7 + bytes.fromhex('2c6d') * 16
+        print(f"obuf len: {len(obuf)} {obuf.hex()}")
+        r = self._epo.write(obuf)
         print(f"write res: {r}")
+        self._epo.write(bytes(64))
+        # rf = self._epo.write(bytes(64))
+        # print(f"flush res: {rf}")
         # r = self._epo.write(bytes([0x5f]))
-        r = self._epi.read(64)
+        r = self._epi.read(512)
         print(f"read res: {r}, len: {len(r)}")
         if len(r) != 64:
             print(f"warning got unexpected length")
+        # r = self._epi.read(512)
+        # print(f"read2 res: {r}, len: {len(r)}")
 
     def read(self, sz):
         return self.xfer(b'\x00' * sz)
