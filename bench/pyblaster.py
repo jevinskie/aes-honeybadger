@@ -97,8 +97,8 @@ class USBBlaster2:
         obuf = bytes.fromhex('00112233445566778899aabbccddeeff')
         l = len(obuf)
         b = BlasterByte(byte_shift=True, read=True, nbytes=l)
-        # obuf = bytes([b.packed]) + obuf + bytes.fromhex('00')
-        obuf = bytes.fromhex('2e2f')*7 + bytes.fromhex('2c6d') * 16
+        obuf = bytes([b.packed]) + obuf + bytes.fromhex('5f')
+        # obuf = bytes.fromhex('2e2f')*7 + bytes.fromhex('2c6d') * 16
         print(f"obuf len: {len(obuf)} {obuf.hex()}")
         r = self._epo.write(obuf)
         print(f"write res: {r}")
