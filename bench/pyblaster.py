@@ -94,16 +94,16 @@ class USBBlaster2:
         # r = self._epo.write(obuf + bytes([0x5f]))
         # r = self._epo.write(bytes.fromhex('c7efbeadde0000005f004100415f'))
         # self._epo.write(bytes(64))
-        obuf = bytes.fromhex('00112233445566778899aabbccddeeff')
-        l = len(obuf)
-        b = BlasterByte(byte_shift=True, read=True, nbytes=l)
-        obuf = bytes([b.packed]) + obuf + bytes.fromhex('5f')
-        obuf = obuf + obuf
-        # obuf = bytes.fromhex('2e2f')*7 + bytes.fromhex('2c6d') * 16
+        # obuf = bytes.fromhex('00112233445566778899aabbccddeeff')
+        # l = len(obuf)
+        # b = BlasterByte(byte_shift=True, read=True, nbytes=l)
+        # obuf = bytes([b.packed]) + obuf + bytes.fromhex('5f')
+        # obuf = obuf + obuf
+        obuf = bytes.fromhex('2e2f')*1 + bytes.fromhex('2c6d') * 1 + bytes([0x5f])
         print(f"obuf len: {len(obuf)} {obuf.hex()}")
         r = self._epo.write(obuf)
         print(f"write res: {r}")
-        self._epo.write(bytes(64))
+        # self._epo.write(bytes(64))
         # rf = self._epo.write(bytes(64))
         # print(f"flush res: {rf}")
         # r = self._epo.write(bytes([0x5f]))
@@ -111,8 +111,8 @@ class USBBlaster2:
         print(f"read res: {r}, len: {len(r)}")
         if len(r) != 64:
             print(f"warning got unexpected length")
-        # r = self._epi.read(512)
-        # print(f"read2 res: {r}, len: {len(r)}")
+        r = self._epi.read(512)
+        print(f"read2 res: {r}, len: {len(r)}")
 
     def read(self, sz):
         return self.xfer(b'\x00' * sz)
