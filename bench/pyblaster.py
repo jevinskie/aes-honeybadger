@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
+from collections import OrderedDict
 import enum
-import sys
 from typing import Final
 
 from rich import print
@@ -16,16 +16,16 @@ import usb.core
 import usb.util
 from usb._objfinalizer import AutoFinalizedObject
 
+from intervaltree import Interval, IntervalTree
+
 import attr
 
 from bitfield import *
 
 VID: Final[int] = 0x09fb
 PID: Final[int] = 0x6010
+PID_FX2LP: Final[int] = 0x6810
 
-
-class CtrlReqType(enum.IntEnum):
-    GET_READ_REV:  Final[int] = 0x94
 
 
 class BBit(enum.IntEnum):
@@ -50,6 +50,83 @@ class BlasterByte(BitFieldUnion):
     nbytes     = BitField(0, 6)
 
 
+
+@attr.s()
+class FX2LP:
+    _dev = attr.ib(init=False, default=usb.core.find(idVendor=VID, idProduct=PID_FX2LP))
+
+    class CtrlReqType(enum.IntEnum):
+        FW_LOAD: Final[int] = 0xA0
+
+    def __attrs_post_init__(self):
+        self._dev.reset()
+        self._dev.set_configuration()
+
+    def read_raw(self, addr: int, sz: int) -> bytes:
+        assert 0 <= addr < 2**16
+        assert 0 <= sz < 0x1000
+        buf = self._dev.ctrl_transfer(usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_RECIPIENT_INTERFACE | usb.util.CTRL_IN,
+                                      self.CtrlReqType.FW_LOAD, addr, 0, sz)
+        buf = bytes(buf)
+        return buf
+        pass
+
+    def write_raw(self, addr: int, buf: bytes) -> None:
+        assert 0 <= addr < 2**16
+        assert len(buf) < 0x1000
+        self._dev.ctrl_transfer(usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_RECIPIENT_INTERFACE | usb.util.CTRL_OUT,
+                                      self.CtrlReqType.FW_LOAD, addr, 0, buf)
+
+    def read(self, addr: int, sz: int) -> bytes:
+        assert 0 <= addr < 2**16
+        assert 0 <= sz < 0x1000
+        return self.read_raw(addr, sz)
+
+    def write(self, addr: int, buf: bytes) -> None:
+        assert 0 <= addr < 2**16
+        nbytes = len(buf)
+        while nbytes > 0:
+            self.write_raw(addr, buf)
+
+    def hold_in_reset(self, hold_reset: bool) -> None:
+        self.write(0xE600, bytes([hold_reset]))
+
+    @classmethod
+    def read_ihex(cls, ihex_path) -> OrderedDict:
+        mem = IntervalTree()
+        with open(ihex_path) as f:
+            for l in map(lambda l: l.strip(), f):
+                if l[0] != ":":
+                    continue
+                nbytes = int(l[1:1+2], 16)
+                addr = int(l[3:3+4], 16)
+                rty = int(l[7:7+2], 16)
+                buf = bytes.fromhex(l[9:-2])
+                checksum = int(l[-2:], 16)
+                assert len(buf) == nbytes
+                if rty == 1:
+                    break
+                else:
+                    assert rty == 0
+                assert len(buf) > 0
+                mem[addr:addr+len(buf)] = buf
+        # mem.merge_neighbors(distance=0, data_reducer=lambda cd, nd: cd + nd)
+        mem_dict = OrderedDict()
+        for i in sorted(mem, key=lambda i: i.begin):
+            mem_dict[i.begin] = i.data
+        return mem_dict
+
+    def send_ihex(self, ihex_path) -> None:
+        self.hold_in_reset(True)
+
+        mem = self.read_ihex(ihex_path)
+        for addr, buf in mem.items():
+            self.write(addr, buf)
+
+        self.hold_in_reset(False)
+
+
+
 @attr.s()
 class USBBlaster2(AutoFinalizedObject):
     _dev = attr.ib(init=False, default=usb.core.find(idVendor=VID, idProduct=PID))
@@ -59,6 +136,9 @@ class USBBlaster2(AutoFinalizedObject):
     _epi = attr.ib(init=False)
     _last_tms = attr.ib(init=False)
     _last_tdi = attr.ib(init=False)
+
+    class CtrlReqType(enum.IntEnum):
+        GET_READ_REV: Final[int] = 0x94
 
     def __attrs_post_init__(self):
         self._dev.reset()
@@ -97,7 +177,7 @@ class USBBlaster2(AutoFinalizedObject):
 
     def get_revision(self):
         rev = self._dev.ctrl_transfer(usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_RECIPIENT_INTERFACE | usb.util.CTRL_IN,
-                                      CtrlReqType.GET_READ_REV, 0, 0, 5)
+                                      self.CtrlReqType.GET_READ_REV, 0, 0, 5)
         rev = bytes(rev).decode().rstrip("\0")
         return rev
 
@@ -222,7 +302,7 @@ class BlasterJTAGController(JtagController):
         return bs
 
 
-def main():
+def blaster_test():
     # blaster = USBBlaster2()
     # print(blaster)
     ctrl = BlasterJTAGController()
@@ -249,6 +329,17 @@ def main():
     r = engine.read_dr(32)
     print(r)
     print(r.tobytes().hex())
+
+
+def fx2_test():
+    fx2 = FX2LP()
+    print(fx2)
+    fx2.send_ihex('blaster_6810.hex')
+
+
+def main():
+    # blaster_test()
+    fx2_test()
 
 if __name__ == "__main__":
     main()
