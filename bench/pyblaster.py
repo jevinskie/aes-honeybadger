@@ -3,6 +3,7 @@
 from collections import OrderedDict
 import enum
 from typing import Final
+import time
 
 from rich import print
 
@@ -16,7 +17,8 @@ import usb.core
 import usb.util
 from usb._objfinalizer import AutoFinalizedObject
 
-from intervaltree import Interval, IntervalTree
+from intervaltree import IntervalTree
+from toolz import partition_all
 
 import attr
 
@@ -59,12 +61,14 @@ class FX2LP:
         FW_LOAD: Final[int] = 0xA0
 
     def __attrs_post_init__(self):
+        if self._dev is None:
+            raise IOError(f"Device {VID:04x}:{PID_FX2LP:04x} not found")
         self._dev.reset()
         self._dev.set_configuration()
 
     def read_raw(self, addr: int, sz: int) -> bytes:
         assert 0 <= addr < 2**16
-        assert 0 <= sz < 0x1000
+        assert 0 <= sz <=0x1000
         buf = self._dev.ctrl_transfer(usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_RECIPIENT_INTERFACE | usb.util.CTRL_IN,
                                       self.CtrlReqType.FW_LOAD, addr, 0, sz)
         buf = bytes(buf)
@@ -73,20 +77,19 @@ class FX2LP:
 
     def write_raw(self, addr: int, buf: bytes) -> None:
         assert 0 <= addr < 2**16
-        assert len(buf) < 0x1000
+        assert len(buf) <= 0x1000
         self._dev.ctrl_transfer(usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_RECIPIENT_INTERFACE | usb.util.CTRL_OUT,
                                       self.CtrlReqType.FW_LOAD, addr, 0, buf)
 
     def read(self, addr: int, sz: int) -> bytes:
-        assert 0 <= addr < 2**16
-        assert 0 <= sz < 0x1000
+        # TODO: chunk
         return self.read_raw(addr, sz)
 
     def write(self, addr: int, buf: bytes) -> None:
         assert 0 <= addr < 2**16
-        nbytes = len(buf)
-        while nbytes > 0:
-            self.write_raw(addr, buf)
+        for chunk in partition_all(0x1000, buf):
+            self.write_raw(addr, chunk)
+            addr += len(chunk)
 
     def hold_in_reset(self, hold_reset: bool) -> None:
         self.write(0xE600, bytes([hold_reset]))
@@ -110,21 +113,18 @@ class FX2LP:
                     assert rty == 0
                 assert len(buf) > 0
                 mem[addr:addr+len(buf)] = buf
-        # mem.merge_neighbors(distance=0, data_reducer=lambda cd, nd: cd + nd)
+        mem.merge_neighbors(distance=0, data_reducer=lambda cd, nd: cd + nd)
         mem_dict = OrderedDict()
         for i in sorted(mem, key=lambda i: i.begin):
             mem_dict[i.begin] = i.data
         return mem_dict
 
     def send_ihex(self, ihex_path) -> None:
-        self.hold_in_reset(True)
-
         mem = self.read_ihex(ihex_path)
+        self.hold_in_reset(True)
         for addr, buf in mem.items():
             self.write(addr, buf)
-
         self.hold_in_reset(False)
-
 
 
 @attr.s()
@@ -141,6 +141,8 @@ class USBBlaster2(AutoFinalizedObject):
         GET_READ_REV: Final[int] = 0x94
 
     def __attrs_post_init__(self):
+        if self._dev is None:
+            raise IOError(f"Device {VID:04x}:{PID:04x} not found")
         self._dev.reset()
         self._dev.set_configuration()
         self._cfg = self._dev.get_active_configuration()
@@ -170,7 +172,8 @@ class USBBlaster2(AutoFinalizedObject):
         self._last_tdi = None
 
     def _finalize_object(self):
-        self.flush()
+        if self._dev is not None:
+            self.flush()
 
     def flush(self):
         self._epo.write(bytes(64))
@@ -184,11 +187,11 @@ class USBBlaster2(AutoFinalizedObject):
     def tick_tms(self, b):
         bl, bh = self.make_clock_bytes(self.make_byte(b, self._last_tdi))
         r = self._epo.write(bytes([bl, bh]))
-        print(f"tick_tms r: {r}")
+        print(f"tick_tms b: {b} bl: {bl:x} bh: {bh:x} r: {r}")
         self._last_tms = b
 
     def tick_tdo(self, nbits):
-        bl = self.make_byte(self._last_tms, self._last_tdi)
+        bl = self.make_byte(0, 0)
         bh = bl | BBit.TCK | BBit.READ
         obuf = bytes([bl, bh] * nbits) + bytes([0x5f])  # flush w/ 5f
         self._epo.write(obuf)
@@ -322,7 +325,7 @@ def blaster_test():
     # r = tool.idcode()
     # print(f"idcode: {r}")
 
-    engine.reset()
+    # engine.reset()
 
     # engine.write_ir(BitSequence('0000000110', msb=True))
     engine.write_ir(BitSequence('0000000110', msb=True, length=10))
@@ -332,14 +335,18 @@ def blaster_test():
 
 
 def fx2_test():
-    fx2 = FX2LP()
-    print(fx2)
-    fx2.send_ihex('blaster_6810.hex')
-
+    try:
+        fx2 = FX2LP()
+        print(fx2)
+        fx2.send_ihex('blaster_6810.hex')
+    except IOError:
+        pass
+    blaster = USBBlaster2()
+    print(blaster)
 
 def main():
-    # blaster_test()
-    fx2_test()
+    blaster_test()
+    # fx2_test()
 
 if __name__ == "__main__":
     main()
