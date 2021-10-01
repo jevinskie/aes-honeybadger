@@ -351,8 +351,32 @@ def fx2_test():
     blaster = USBBlaster2()
     print(blaster)
 
+def blaster_test_raw():
+    try:
+        fx2 = FX2LP()
+        print(fx2)
+        fx2.send_ihex('blaster_6810.hex')
+    except IOError:
+        pass
+    # blaster = USBBlaster2()
+    # print(blaster)
+    ctrl = BlasterJTAGController()
+    print(ctrl)
+
+    # reset
+    ctrl.write_tms(BitSequence('11111'))
+
+    # shift dr
+    ctrl.write_tms(BitSequence('0100'))
+
+    idcode_res_raw_raw = ctrl.read(32)
+    print(idcode_res_raw_raw)
+
+
+
 def main():
-    blaster_test()
+    blaster_test_raw()
+    # blaster_test()
     # fx2_test()
 
 if __name__ == "__main__":
