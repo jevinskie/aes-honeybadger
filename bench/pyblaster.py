@@ -206,6 +206,7 @@ class USBBlaster2(AutoFinalizedObject):
     def tick_tdi(self, bout):
         obuf = bytes()
         for b in bout:
+            print(f"tick_tdi: {b}")
             bl = self.make_byte(self._last_tms, b)
             bh = bl | BBit.TCK
             self._last_tdi = b
