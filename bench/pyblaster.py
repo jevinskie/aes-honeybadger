@@ -307,6 +307,12 @@ class BlasterJTAGController(JtagController):
 
 
 def blaster_test():
+    try:
+        fx2 = FX2LP()
+        print(fx2)
+        fx2.send_ihex('blaster_6810.hex')
+    except IOError:
+        pass
     # blaster = USBBlaster2()
     # print(blaster)
     ctrl = BlasterJTAGController()
