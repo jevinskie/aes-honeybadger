@@ -184,10 +184,16 @@ class USBBlaster2(AutoFinalizedObject):
         rev = bytes(rev).decode().rstrip("\0")
         return rev
 
-    def tick_tms(self, b):
-        bl, bh = self.make_clock_bytes(self.make_byte(b, self._last_tdi))
-        r = self._epo.write(bytes([bl, bh]))
-        print(f"tick_tms b: {b} bl: {bl:x} bh: {bh:x} r: {r}")
+    def tick_tms(self, bout):
+        if isinstance(bout, int) or isinstance(bout, bool):
+            bout = BitSequence(bout, length=1)
+        obuf = bytes()
+        for b in bout:
+            bl, bh = self.make_clock_bytes(self.make_byte(b, self._last_tdi))
+            obuf += bytes([bl, bh])
+            print(f"tick_tms: {b}")
+        r = self._epo.write(obuf)
+        print(f"tick_tms r: {r}")
         self._last_tms = b
 
     def tick_tdo(self, nbits):
@@ -369,13 +375,32 @@ def blaster_test_raw():
     # shift dr
     ctrl.write_tms(BitSequence('0100'))
 
-    idcode_res_raw_raw = ctrl.read(32)
+    idcode_res_raw = ctrl.read(32)
+    print(idcode_res_raw)
+
+def blaster_test_raw_raw():
+    try:
+        fx2 = FX2LP()
+        print(fx2)
+        fx2.send_ihex('blaster_6810.hex')
+    except IOError:
+        pass
+    blaster = USBBlaster2()
+    print(blaster)
+
+    # reset
+    blaster.tick_tms(BitSequence('11111'))
+
+    # shift dr
+    blaster.tick_tms(BitSequence('0100'))
+
+    idcode_res_raw_raw = blaster.tick_tdo(32)
     print(idcode_res_raw_raw)
 
 
-
 def main():
-    blaster_test_raw()
+    blaster_test_raw_raw()
+    # blaster_test_raw()
     # blaster_test()
     # fx2_test()
 
