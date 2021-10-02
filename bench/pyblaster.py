@@ -192,8 +192,7 @@ class USBBlaster2(AutoFinalizedObject):
             bl, bh = self.make_clock_bytes(self.make_byte(b, self._last_tdi))
             obuf += bytes([bl, bh])
             print(f"tick_tms: {b}")
-        r = self._epo.write(obuf)
-        print(f"tick_tms r: {r}")
+        self._epo.write(obuf)
         self._last_tms = b
 
     def tick_tdo(self, nbits):
@@ -218,8 +217,7 @@ class USBBlaster2(AutoFinalizedObject):
             self._last_tdi = b
             obuf += bytes([bl, bh])
         print(f"ticking tdi with {len(obuf)} {obuf.hex()}")
-        r = self._epo.write(obuf)
-        print(f"tdi r: {r}")
+        self._epo.write(obuf)
 
     def tick_tdi_with_tdo(self, bout):
         obuf = bytes()
@@ -231,7 +229,6 @@ class USBBlaster2(AutoFinalizedObject):
         # obuf += bytes([0x5f])
         print(f"ticking tdi with {len(obuf)} {obuf.hex()}")
         r = self._epo.write(obuf)
-        print(f"tdi r: {r}")
         # ibuf = self._epi.read(512)
         # bsin = "".join(map(str, [b & 1 for b in ibuf]))
         # print(f"bsin: {bsin}")
@@ -319,29 +316,13 @@ def blaster_test():
         fx2.send_ihex('blaster_6810.hex')
     except IOError:
         pass
-    # blaster = USBBlaster2()
-    # print(blaster)
     ctrl = BlasterJTAGController()
     print(ctrl)
     engine = JtagEngine(ctrl=ctrl)
-    engine.reset()
     print(engine)
-    tool = JtagTool(engine)
-    print(tool)
+    engine.reset()
 
-    # engine.change_state("shift_ir")
-    # engine.change_state("test_logic_reset")
-    # engine.change_state("run_test_idle")
-    # engine.change_state("capture")
-    # r = tool.detect_register_size()
-    # print(f"register size: {r}")
-    # r = tool.idcode()
-    # print(f"idcode: {r}")
-
-    # engine.reset()
-
-    # engine.write_ir(BitSequence('0000000110', msb=True))
-    engine.write_ir(BitSequence('0000000110', msb=True, length=10))
+    engine.write_ir(BitSequence('0000000110', msb=True))
     r = engine.read_dr(32)
     print(r)
     print(r.tobytes().hex())
@@ -399,9 +380,9 @@ def blaster_test_raw_raw():
 
 
 def main():
-    blaster_test_raw_raw()
+    # blaster_test_raw_raw()
     # blaster_test_raw()
-    # blaster_test()
+    blaster_test()
     # fx2_test()
 
 if __name__ == "__main__":
