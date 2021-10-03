@@ -19,8 +19,6 @@ import usb.core
 import usb.util
 from usb._objfinalizer import AutoFinalizedObject
 
-from makeelf.elf import *
-
 from intervaltree import IntervalTree
 from toolz import partition_all
 
@@ -121,15 +119,6 @@ class FX2LP:
         mem_dict = OrderedDict()
         for i in sorted(mem, key=lambda i: i.begin):
             mem_dict[i.begin] = i.data
-
-        elf = ELF(e_machine=EM.EM_NONE)
-        for i, region in enumerate(mem_dict.items()):
-            addr, buf = region
-            elf.append_section(f'.sec_{i:x}_{addr:04x}', buf, addr)
-        with open('blaster_6810.elf', 'wb') as elff:
-            elff.write(bytes(elf))
-        print(elf)
-        sys.exit(0)
         return mem_dict
 
     def send_ihex(self, ihex_path) -> None:
