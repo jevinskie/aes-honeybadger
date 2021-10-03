@@ -130,22 +130,6 @@ class FX2LP:
 
 
 @attr.s()
-class EPOutQueue:
-    dev = attr.ib()
-    _q = attr.ib(init=False)
-
-    def __attrs_post_init__(self):
-        self._q = bytearray()
-
-    def put(self, buf):
-        self._q.append(buf)
-
-    def flush(self):
-        while not self._q.empty():
-            pass
-
-
-@attr.s()
 class USBBlaster2(AutoFinalizedObject):
     _dev = attr.ib(init=False, default=usb.core.find(idVendor=VID, idProduct=PID))
     _cfg = attr.ib(init=False)
@@ -189,14 +173,19 @@ class USBBlaster2(AutoFinalizedObject):
         print(f"revision: {self.revision}")
         self._last_tms = None
         self._last_tdi = None
-        self._q = queue.Queue()
+        self._q = bytearray()
 
     def _finalize_object(self):
         if self._dev is not None:
-            self.flush()
+            pass
 
     def flush(self):
-        self._epo.write(bytes(64))
+        print("FLUSHING!!!!!!!")
+        self._epo.write(self._q)
+        self._q.clear()
+
+    def enqueue(self, obuf):
+        self._q += obuf
 
     def get_revision(self):
         rev = self._dev.ctrl_transfer(usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_RECIPIENT_INTERFACE | usb.util.CTRL_IN,
@@ -212,7 +201,7 @@ class USBBlaster2(AutoFinalizedObject):
             bl, bh = self.make_clock_bytes(self.make_byte(b, self._last_tdi))
             obuf += bytes([bl, bh])
             print(f"tick_tms: {b}")
-        self._epo.write(obuf)
+        self.enqueue(obuf)
         self._last_tms = b
 
     def tick_tdo(self, nbits):
@@ -220,7 +209,8 @@ class USBBlaster2(AutoFinalizedObject):
         bh = bl | BBit.TCK | BBit.READ
         obuf = bytes([bl | BBit.TDI, bh] * nbits) + bytes([0x5f])  # flush w/ 5f
         print(f"tdo obuf: len: {len(obuf)} {obuf.hex()}")
-        self._epo.write(obuf)
+        self.enqueue(obuf)
+        self.flush()
         ibuf = self._epi.read(512)
         print(f"tdo ibuf: len: {len(ibuf)} {ibuf}")
         bsin = "".join(map(str, [b & 1 for b in ibuf]))
@@ -238,7 +228,7 @@ class USBBlaster2(AutoFinalizedObject):
             self._last_tdi = b
             obuf += bytes([bl, bh])
         print(f"ticking tdi with {len(obuf)} {obuf.hex()}")
-        self._epo.write(obuf)
+        self.enqueue(obuf)
 
     def tick_tdi_with_tdo(self, bout):
         obuf = bytes()
@@ -249,7 +239,8 @@ class USBBlaster2(AutoFinalizedObject):
             obuf += bytes([bl, bh])
         # obuf += bytes([0x5f])
         print(f"ticking tdi with {len(obuf)} {obuf.hex()}")
-        r = self._epo.write(obuf)
+        self.enqueue().write(obuf)
+        assert False
         # ibuf = self._epi.read(512)
         # bsin = "".join(map(str, [b & 1 for b in ibuf]))
         # print(f"bsin: {bsin}")
@@ -258,7 +249,8 @@ class USBBlaster2(AutoFinalizedObject):
         # return bs
 
     def read_from_buffer(self, sz):
-        self._epo.write(bytes([0x5f]))
+        self.enqueue(bytes([0x5f]))
+        self.flush()
         ibuf = self._epi.read(512)
         print(f"read_from_buffer len: {len(ibuf)}")
         bsin = "".join(map(str, [b & 1 for b in ibuf]))
