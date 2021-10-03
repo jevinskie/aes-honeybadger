@@ -2,6 +2,8 @@
 
 from collections import OrderedDict
 import enum
+import queue
+import sys
 from typing import Final
 import time
 
@@ -16,6 +18,8 @@ from pyftdi.jtag import *
 import usb.core
 import usb.util
 from usb._objfinalizer import AutoFinalizedObject
+
+from makeelf.elf import *
 
 from intervaltree import IntervalTree
 from toolz import partition_all
@@ -117,6 +121,15 @@ class FX2LP:
         mem_dict = OrderedDict()
         for i in sorted(mem, key=lambda i: i.begin):
             mem_dict[i.begin] = i.data
+
+        elf = ELF(e_machine=EM.EM_NONE)
+        for i, region in enumerate(mem_dict.items()):
+            addr, buf = region
+            elf.append_section(f'.sec_{i:x}_{addr:04x}', buf, addr)
+        with open('blaster_6810.elf', 'wb') as elff:
+            elff.write(bytes(elf))
+        print(elf)
+        sys.exit(0)
         return mem_dict
 
     def send_ihex(self, ihex_path) -> None:
@@ -128,6 +141,22 @@ class FX2LP:
 
 
 @attr.s()
+class EPOutQueue:
+    dev = attr.ib()
+    _q = attr.ib(init=False)
+
+    def __attrs_post_init__(self):
+        self._q = bytearray()
+
+    def put(self, buf):
+        self._q.append(buf)
+
+    def flush(self):
+        while not self._q.empty():
+            pass
+
+
+@attr.s()
 class USBBlaster2(AutoFinalizedObject):
     _dev = attr.ib(init=False, default=usb.core.find(idVendor=VID, idProduct=PID))
     _cfg = attr.ib(init=False)
@@ -136,6 +165,7 @@ class USBBlaster2(AutoFinalizedObject):
     _epi = attr.ib(init=False)
     _last_tms = attr.ib(init=False)
     _last_tdi = attr.ib(init=False)
+    _q = attr.ib(init=False)
 
     class CtrlReqType(enum.IntEnum):
         GET_READ_REV: Final[int] = 0x94
@@ -170,6 +200,7 @@ class USBBlaster2(AutoFinalizedObject):
         print(f"revision: {self.revision}")
         self._last_tms = None
         self._last_tdi = None
+        self._q = queue.Queue()
 
     def _finalize_object(self):
         if self._dev is not None:
@@ -198,14 +229,15 @@ class USBBlaster2(AutoFinalizedObject):
     def tick_tdo(self, nbits):
         bl = self.make_byte(0, 0)
         bh = bl | BBit.TCK | BBit.READ
-        obuf = bytes([bl, bh] * nbits) + bytes([0x5f])  # flush w/ 5f
+        obuf = bytes([bl | BBit.TDI, bh] * nbits) + bytes([0x5f])  # flush w/ 5f
+        print(f"tdo obuf: len: {len(obuf)} {obuf.hex()}")
         self._epo.write(obuf)
         ibuf = self._epi.read(512)
-        print(f"ibuf: len: {len(ibuf)} {ibuf}")
+        print(f"tdo ibuf: len: {len(ibuf)} {ibuf}")
         bsin = "".join(map(str, [b & 1 for b in ibuf]))
-        print(f"bsin: {bsin}")
+        print(f"tdo bsin: {bsin}")
         bs = BitSequence(bsin)
-        print(f"bs: {bs}")
+        print(f"tdo bs: {bs}")
         return bs
 
     def tick_tdi(self, bout):
@@ -357,7 +389,7 @@ def blaster_test_raw():
     idcode_res_raw = ctrl.read(32)
     print(idcode_res_raw)
 
-def blaster_test_raw_set_ir():
+def blaster_test_raw_set_ir(use_idcode_inst=False):
     try:
         fx2 = FX2LP()
         print(fx2)
@@ -370,19 +402,24 @@ def blaster_test_raw_set_ir():
     # reset state
     ctrl.write_tms(BitSequence('11111'))
 
-    # shift ir state
-    ctrl.write_tms(BitSequence('01100'))
+    if use_idcode_inst:
+        # shift ir state
+        ctrl.write_tms(BitSequence('01100'))
 
-    # shift IDCODE instruction
-    ctrl.write(BitSequence('0000000110', msb=True))
+        # shift IDCODE instruction
+        ctrl.write(BitSequence('0000000110', msb=True))
 
-    # shift dr state
-    ctrl.write_tms(BitSequence('11100'))
+        # shift dr state
+        ctrl.write_tms(BitSequence('11100'))
+    else:
+        # shift dr
+        ctrl.write_tms(BitSequence('0100'))
 
-    idcode = ctrl.read(32)
+
+    idcode = ctrl.read(16)
     print(idcode)
 
-def blaster_test_raw_raw():
+def blaster_test_raw_raw(use_idcode_inst=True):
     try:
         fx2 = FX2LP()
         print(fx2)
@@ -394,19 +431,33 @@ def blaster_test_raw_raw():
 
     # reset
     blaster.tick_tms(BitSequence('11111'))
+    print("TLR")
 
-    # shift dr
-    blaster.tick_tms(BitSequence('0100'))
+    if use_idcode_inst:
+        # shift ir state
+        blaster.tick_tms(BitSequence('01100'))
+        print("SHIFT_IR")
 
-    idcode_res_raw_raw = blaster.tick_tdo(32)
+        # shift IDCODE instruction
+        blaster.tick_tdi(BitSequence('0000000110', msb=True))
+
+        # shift dr state
+        blaster.tick_tms(BitSequence('11100'))
+        print("SHIFT_DR")
+    else:
+        # shift dr
+        blaster.tick_tms(BitSequence('0100'))
+        print("SHIFT_DR")
+
+    idcode_res_raw_raw = blaster.tick_tdo(16)
     print(idcode_res_raw_raw)
 
 
 def main():
-    # blaster_test_raw_raw()
+    blaster_test_raw_raw()
     # blaster_test_raw()
     # blaster_test()
-    blaster_test_raw_set_ir()
+    # blaster_test_raw_set_ir()
     # fx2_test()
 
 if __name__ == "__main__":
