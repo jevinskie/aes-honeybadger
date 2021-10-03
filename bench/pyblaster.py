@@ -61,6 +61,7 @@ class FX2LP:
 
     class CtrlReqType(enum.IntEnum):
         FW_LOAD: Final[int] = 0xA0
+        RENUMERATE: Final[int] = 0xA8
 
     def __attrs_post_init__(self):
         if self._dev is None:
@@ -128,6 +129,9 @@ class FX2LP:
             self.write(addr, buf)
         self.hold_in_reset(False)
 
+    def renumerate(self):
+        self._dev.ctrl_transfer(usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_RECIPIENT_INTERFACE | usb.util.CTRL_IN,
+                                self.CtrlReqType.RENUMERATE, 0, 0, 0)
 
 @attr.s()
 class USBBlaster2(AutoFinalizedObject):
@@ -142,6 +146,7 @@ class USBBlaster2(AutoFinalizedObject):
 
     class CtrlReqType(enum.IntEnum):
         GET_READ_REV: Final[int] = 0x94
+        RENUMERATE: Final[int] = 0x8F
 
     def __attrs_post_init__(self):
         if self._dev is None:
@@ -179,6 +184,10 @@ class USBBlaster2(AutoFinalizedObject):
         if self._dev is not None:
             pass
 
+    def renumerate(self):
+        self._dev.ctrl_transfer(usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_RECIPIENT_DEVICE | usb.util.CTRL_OUT,
+                                      self.CtrlReqType.RENUMERATE, 0x00, 0, [])
+
     def flush(self):
         print("FLUSHING!!!!!!!")
         self._epo.write(self._q)
@@ -207,7 +216,22 @@ class USBBlaster2(AutoFinalizedObject):
     def tick_tdo(self, nbits):
         bl = self.make_byte(0, 0)
         bh = bl | BBit.TCK | BBit.READ
-        obuf = bytes([bl | BBit.TDI, bh] * nbits) + bytes([0x5f])  # flush w/ 5f
+        obuf = bytes([bl, bh] * nbits) + bytes([0x5f])  # flush w/ 5f
+        print(f"tdo obuf: len: {len(obuf)} {obuf.hex()}")
+        self.enqueue(obuf)
+        # self.flush()
+        # ibuf = self._epi.read(512)
+        return BitSequence()
+        print(f"tdo ibuf: len: {len(ibuf)} {ibuf}")
+        bsin = "".join(map(str, [b & 1 for b in ibuf]))
+        print(f"tdo bsin: {bsin}")
+        bs = BitSequence(bsin)
+        print(f"tdo bs: {bs}")
+        return bs
+
+    def tick_tdo_bytes(self, nbytes):
+        assert 0 < nbytes < 2**6
+        obuf = bytes([BBit.BYTE_SHIFT | nbytes]) + bytes([0xaa] * nbytes)
         print(f"tdo obuf: len: {len(obuf)} {obuf.hex()}")
         self.enqueue(obuf)
         # self.flush()
@@ -328,6 +352,7 @@ def blaster_test():
         fx2 = FX2LP()
         print(fx2)
         fx2.send_ihex('blaster_6810.hex')
+        fx2.renumerate()
     except IOError:
         pass
     ctrl = BlasterJTAGController()
@@ -376,6 +401,7 @@ def blaster_test_raw_set_ir(use_idcode_inst=False):
         fx2 = FX2LP()
         print(fx2)
         fx2.send_ihex('blaster_6810.hex')
+        fx2.renumerate()
     except IOError:
         pass
     ctrl = BlasterJTAGController()
@@ -406,6 +432,7 @@ def blaster_test_raw_raw(use_idcode_inst=True):
         fx2 = FX2LP()
         print(fx2)
         fx2.send_ihex('blaster_6810.hex')
+        fx2.renumerate()
     except IOError:
         pass
     blaster = USBBlaster2()
@@ -421,7 +448,7 @@ def blaster_test_raw_raw(use_idcode_inst=True):
         print("SHIFT_IR")
 
         # shift IDCODE instruction
-        blaster.tick_tdi(BitSequence('0000000110', msb=True))
+        blaster.tick_tdi(BitSequence('000000110', msb=True))
 
         # shift dr state
         blaster.tick_tms(BitSequence('11100'))
@@ -431,15 +458,36 @@ def blaster_test_raw_raw(use_idcode_inst=True):
         blaster.tick_tms(BitSequence('0100'))
         print("SHIFT_DR")
 
-    idcode_res_raw_raw = blaster.tick_tdo(32)
+    idcode_res_raw_raw = blaster.tick_tdo_bytes(32//8)
     print(idcode_res_raw_raw)
 
     #reset
     blaster.tick_tms(BitSequence('11111'))
     blaster.flush()
 
+def renumerate_test():
+    for i in range(3):
+        print(f"TRY {i}")
+        try:
+            fx2 = FX2LP()
+            print(fx2)
+            fx2.send_ihex('blaster_6810.hex')
+            fx2.renumerate()
+            time.sleep(3)
+        except IOError:
+            pass
+        blaster = USBBlaster2()
+        print(blaster)
+        try:
+            blaster.renumerate()
+        except:
+            pass
+        time.sleep(3)
+        # del blaster
+        time.sleep(3)
 
 def main():
+    # renumerate_test()
     blaster_test_raw_raw()
     # blaster_test_raw()
     # blaster_test()
