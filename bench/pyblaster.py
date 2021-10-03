@@ -210,8 +210,9 @@ class USBBlaster2(AutoFinalizedObject):
         obuf = bytes([bl | BBit.TDI, bh] * nbits) + bytes([0x5f])  # flush w/ 5f
         print(f"tdo obuf: len: {len(obuf)} {obuf.hex()}")
         self.enqueue(obuf)
-        self.flush()
-        ibuf = self._epi.read(512)
+        # self.flush()
+        # ibuf = self._epi.read(512)
+        return BitSequence()
         print(f"tdo ibuf: len: {len(ibuf)} {ibuf}")
         bsin = "".join(map(str, [b & 1 for b in ibuf]))
         print(f"tdo bsin: {bsin}")
@@ -430,8 +431,12 @@ def blaster_test_raw_raw(use_idcode_inst=True):
         blaster.tick_tms(BitSequence('0100'))
         print("SHIFT_DR")
 
-    idcode_res_raw_raw = blaster.tick_tdo(16)
+    idcode_res_raw_raw = blaster.tick_tdo(32)
     print(idcode_res_raw_raw)
+
+    #reset
+    blaster.tick_tms(BitSequence('11111'))
+    blaster.flush()
 
 
 def main():
